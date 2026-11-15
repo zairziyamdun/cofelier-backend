@@ -20,10 +20,10 @@ src/
   prisma/             PrismaModule, PrismaService (global, adapter-pg)             (есть)
   generated/prisma/   сгенерированный клиент Prisma, не коммитится                 (есть)
   health/             GET /api/health — API жив и видит БД                         (есть)
-  common/             декоратор @Public                                            (есть)
-                      @Roles, @CurrentUser, guards, фильтры                        (план, этап 3)
-  auth/               вход, регистрация, JWT, стратегии Passport                   (план, этап 3)
-  users/              пользователи и роли                                          (план, этап 3)
+  common/             @Public, @Roles, @CurrentUser, @Trim; JwtAuthGuard, RolesGuard (есть)
+  auth/               вход, регистрация, выход, /auth/me; JwtStrategy, cookie      (есть)
+  users/              UsersService, пароли (argon2), GET /users/staff              (есть)
+                      создание и правка сотрудников                                (план, этап 4)
   menu/               GET /api/menu: категории с позициями, mapper, DTO           (есть)
                       правка, цены, стоп-лист                                      (план, этап 4)
   orders/             заказы, статусы, WebSocket-шлюз                              (план, этап 5)
@@ -61,12 +61,25 @@ Dockerfile            многоступенчатая сборка; при ст
 
 ## 2. Авторизация и роли
 
-- Глобальные guards в `app.module.ts` (план, этап 3): `JwtAuthGuard` →
+- Глобальные guards (есть, `APP_GUARD` в `app.module.ts`): `JwtAuthGuard` →
   `RolesGuard`. Порядок важен: сначала кто, потом можно ли.
 - `@Public()` — без входа; `@Roles('manager', 'admin')` — список ролей;
-  без декоратора — любой вошедший.
-- JWT: payload `{ sub: userId, role }`, срок — из env. Cookie `access_token`:
-  `httpOnly`, `sameSite: 'lax'`, `secure` в проде. Выход — очистка cookie.
+  без декоратора — любой вошедший. Без входа — `401 «Нужно войти»`, без
+  роли — `403 «Недостаточно прав»`.
+- JWT: payload `{ sub: userId }`, срок — `JWT_TTL_SECONDS`. **Роль в токене не
+  хранится**: `JwtStrategy` на каждый запрос берёт пользователя из БД, поэтому
+  смена роли и отключение (`isActive = false`) действуют сразу.
+- Cookie `access_token`: `httpOnly`, `sameSite: 'lax'`, `secure` в проде,
+  `domain` — `COOKIE_DOMAIN`. Токен в теле ответа не отдаётся. Выход —
+  `clearCookie` с теми же опциями.
+- Вход: одно сообщение «Неверная почта или пароль» и для чужой почты, и для
+  неверного пароля, и для отключённого — не выдаём, кто зарегистрирован.
+- Регистрация — только клиенты (`role` в теле отклоняется ValidationPipe);
+  сотрудников создаёт админ. Почта хранится в нижнем регистре, пробелы по
+  краям обрезает `@Trim()`.
+- Лимит: `ThrottlerGuard` на входе и регистрации, 10 запросов в минуту с IP.
+- Первый админ — `pnpm db:seed` из `ADMIN_EMAIL` и `ADMIN_PASSWORD`; пароль
+  существующему пользователю сиды не меняют.
 - `GET /auth/me` — текущий пользователь; им пользуется фронт для redirect.
 
 ### Матрица доступа (новая ручка — строка здесь в том же PR)
@@ -77,6 +90,9 @@ Dockerfile            многоступенчатая сборка; при ст
 | --- | --- | --- | --- | --- | --- | --- |
 | `GET /health` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | `GET /menu` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| `POST /auth/register`, `POST /auth/login`, `POST /auth/logout` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| `GET /auth/me` | ✔ | | ✔ | ✔ | ✔ | ✔ |
+| `GET /users/staff` | ✔ | | | | | ✔ |
 | `POST/PATCH/DELETE /menu/items` | | | | | ✔ | ✔ |
 | `PATCH /menu/items/:id/stop-list` | | | | | ✔ | ✔ |
 | `POST /orders` | | | ✔ | | | |
@@ -84,7 +100,7 @@ Dockerfile            многоступенчатая сборка; при ст
 | `GET /orders/queue` | | | | ✔ | ✔ | ✔ |
 | `PATCH /orders/:id/status` | | | | ✔ | ✔ | ✔ |
 | `GET /stats/sales` | | | | | ✔ | ✔ |
-| `GET/PATCH /users` (сотрудники, роли) | | | | | | ✔ |
+| `POST/PATCH /users` (создать сотрудника, сменить роль) | | | | | | ✔ |
 
 ## 3. API и ошибки
 
@@ -139,7 +155,10 @@ env роняет приложение сразу с перечнем ошибо�
 | `PORT` | порт API, по умолчанию 4000 | ✔ |
 | `DATABASE_URL` | строка подключения PostgreSQL | ✔ |
 | `FRONTEND_URL` | разрешённый origin для CORS, по умолчанию `http://localhost:3000` | ✔ |
-| `JWT_SECRET`, `JWT_EXPIRES_IN` | подпись и срок токена | этап 3 |
+| `JWT_SECRET` | подпись JWT, минимум 32 символа | ✔ |
+| `JWT_TTL_SECONDS` | срок токена и cookie, по умолчанию 604800 (7 дней) | ✔ |
+| `COOKIE_DOMAIN` | домен cookie в проде (`.cofelier.kz`); пусто — текущий хост | ✔ |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | первый админ для `pnpm db:seed` (не для приложения) | ✔ |
 
 ---
 

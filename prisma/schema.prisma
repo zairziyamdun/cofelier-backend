@@ -13,6 +13,28 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  client
+  barista
+  manager
+  admin
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  // Хранится в нижнем регистре: вход не зависит от регистра букв.
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         Role     @default(client)
+  // Отключённый сотрудник не может войти, но его заказы и история остаются.
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
 model MenuCategory {
   id        Int        @id @default(autoincrement())
   // Стабильный идентификатор для URL и якорей на странице меню.
