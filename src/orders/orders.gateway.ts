@@ -41,7 +41,14 @@ export class OrdersGateway implements OnGatewayConnection {
 
   // Без действующей cookie подключение закрывается: события только своим.
   async handleConnection(client: Socket): Promise<void> {
-    const token = readAccessToken(client.handshake.headers.cookie);
+    // Токен из handshake.auth (сайт на другом домене) или cookie (тот же домен).
+    const handshakeToken: unknown = (
+      client.handshake.auth as { token?: unknown }
+    ).token;
+    const token =
+      typeof handshakeToken === 'string'
+        ? handshakeToken
+        : readAccessToken(client.handshake.headers.cookie);
     const user = token ? await this.authService.userFromToken(token) : null;
     if (!user) {
       client.disconnect(true);

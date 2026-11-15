@@ -32,6 +32,7 @@ import { ACCESS_TOKEN_COOKIE, accessTokenCookieOptions } from './auth-cookie';
 import { AuthService, type Session } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { SocketTokenDto } from './dto/socket-token.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -79,6 +80,17 @@ export class AuthController {
   logout(@Res({ passthrough: true }) response: Response): void {
     // Express 5 сам игнорирует maxAge в clearCookie; путь и домен должны совпасть.
     response.clearCookie(ACCESS_TOKEN_COOKIE, this.cookieOptions());
+  }
+
+  @Get('socket-token')
+  @ApiCookieAuth()
+  @ApiOperation({
+    summary: 'Токен на минуту для подключения к WebSocket /orders',
+  })
+  @ApiOkResponse({ type: SocketTokenDto })
+  @ApiUnauthorizedResponse({ description: 'Нужно войти' })
+  async socketToken(@CurrentUser() user: AuthUser): Promise<SocketTokenDto> {
+    return { token: await this.authService.createSocketToken(user.id) };
   }
 
   @Get('me')

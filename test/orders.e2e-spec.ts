@@ -308,6 +308,46 @@ describe('Заказы (e2e)', () => {
     expect(clientSees).not.toHaveProperty('customerName');
   });
 
+  it('WebSocket с токеном из /auth/socket-token — без cookie (сайт на другом домене)', async () => {
+    const tokenResponse = await api()
+      .get('/api/auth/socket-token')
+      .set('Cookie', users.cookie(client))
+      .expect(200);
+    const { token } = tokenResponse.body as { token: string };
+
+    const socket = io(`${baseUrl}/orders`, {
+      transports: ['websocket'],
+      forceNew: true,
+      auth: { token },
+    });
+    sockets.push(socket);
+    await nextEvent(socket, 'connect');
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const created = (
+      await order(client, {
+        items: [{ menuItemId: latte.id, quantity: 1 }],
+      }).expect(201)
+    ).body as OrderDto;
+    const updated = nextEvent<OrderDto>(socket, 'order.updated');
+    await setStatus(barista, created.id, 'accepted').expect(200);
+    expect(await updated).toMatchObject({ id: created.id, status: 'accepted' });
+  });
+
+  it('токен сокета не годится для REST и без входа не выдаётся', async () => {
+    await api().get('/api/auth/socket-token').expect(401);
+    const { token } = (
+      await api()
+        .get('/api/auth/socket-token')
+        .set('Cookie', users.cookie(client))
+        .expect(200)
+    ).body as { token: string };
+    await api()
+      .get('/api/auth/me')
+      .set('Cookie', `access_token=${token}`)
+      .expect(401);
+  });
+
   it('WebSocket без входа отключается', async () => {
     const anonymous = connect();
     await nextEvent(anonymous, 'disconnect');

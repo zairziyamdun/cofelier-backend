@@ -39,6 +39,7 @@ NestJS 11 + Prisma + PostgreSQL, REST + WebSocket, Swagger, pnpm. Коммент
 | [docs/OVERVIEW.md](docs/OVERVIEW.md) | Продукт, роли, страницы, этапы (общий с фронтом) |
 | [docs/Tech-spec.md](docs/Tech-spec.md) | Стек и версии |
 | [docs/PR-POLICY.md](docs/PR-POLICY.md) | Правила проверки PR, их строгость и ID |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Деплой на Railway: переменные, связка с Vercel, частые ошибки |
 
 ## Структура модуля
 

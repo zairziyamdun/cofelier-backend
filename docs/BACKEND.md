@@ -94,6 +94,7 @@ Dockerfile            многоступенчатая сборка; при ст
 | `GET /menu` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | `GET /auth/me` | ✔ | | ✔ | ✔ | ✔ | ✔ |
+| `GET /auth/socket-token` (JWT на 60 с для WebSocket) | ✔ | | ✔ | ✔ | ✔ | ✔ |
 | `GET /users/staff` | ✔ | | | | | ✔ |
 | `GET /menu/manage` (все категории и позиции, со стоп-листом) | ✔ | | | | ✔ | ✔ |
 | `POST /menu/items`, `PATCH/DELETE /menu/items/:id` | ✔ | | | | ✔ | ✔ |
@@ -193,8 +194,10 @@ Dockerfile            многоступенчатая сборка; при ст
 
 - `OrdersGateway` (socket.io), namespace `/orders`. CORS и cookie —
   `SocketIoAdapter` в `main.ts` (тот же `FRONTEND_URL`, `credentials`).
-- При подключении — cookie `access_token` из заголовка
-  (`readAccessToken`) → `AuthService.userFromToken` (подпись, срок,
+- При подключении — токен из `handshake.auth.token` (сайт на другом домене:
+  берёт его через `GET /auth/socket-token`, JWT на 60 с с `purpose: 'socket'`,
+  для REST не годится) или cookie `access_token` из заголовка
+  (`readAccessToken`, тот же домен) → `AuthService.userFromToken` (подпись, срок,
   активный пользователь). Нет — `disconnect`. Комнаты: `user:<id>` всем,
   `staff` — бариста, менеджеру, админу.
 - События, **после** записи в БД:
