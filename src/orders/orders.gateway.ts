@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import {
   OnGatewayConnection,
+  OnGatewayInit,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
@@ -27,29 +28,41 @@ const STAFF_ROOM = 'staff';
 const STAFF_ROLES: Role[] = ['barista', 'manager', 'admin'];
 const userRoom = (userId: number) => `user:${userId}`;
 
+type SocketUser = { id: number; role: Role };
+
 // События (BACKEND.md §5):
 //   order.created — персоналу, новый заказ (StaffOrderDto);
 //   order.updated — персоналу StaffOrderDto, клиенту-владельцу OrderDto.
 // CORS и cookie — в SocketIoAdapter (main.ts).
 @WebSocketGateway({ namespace: '/orders' })
-export class OrdersGateway implements OnGatewayConnection {
+export class OrdersGateway implements OnGatewayInit, OnGatewayConnection {
   @WebSocketServer()
   private readonly server?: Namespace;
   private readonly logger = new Logger(OrdersGateway.name);
 
   constructor(private readonly authService: AuthService) {}
 
-  // Без действующей cookie подключение закрывается: события только своим.
+  // Проверка входа — в middleware до подключения: без действующего токена
+  // клиент получает connect_error, а не «connect» и сразу разрыв, и сам
+  // решает, когда повторить.
+  afterInit(server: Namespace): void {
+    server.use((client, next) => {
+      void this.authenticate(client).then(
+        (user) => {
+          if (!user) return next(new Error('unauthorized'));
+          (client.data as { user?: SocketUser }).user = user;
+          next();
+        },
+        (error: unknown) => {
+          this.logger.error(error, 'socket auth failed');
+          next(new Error('unauthorized'));
+        },
+      );
+    });
+  }
+
   async handleConnection(client: Socket): Promise<void> {
-    // Токен из handshake.auth (сайт на другом домене) или cookie (тот же домен).
-    const handshakeToken: unknown = (
-      client.handshake.auth as { token?: unknown }
-    ).token;
-    const token =
-      typeof handshakeToken === 'string'
-        ? handshakeToken
-        : readAccessToken(client.handshake.headers.cookie);
-    const user = token ? await this.authService.userFromToken(token) : null;
+    const { user } = client.data as { user?: SocketUser };
     if (!user) {
       client.disconnect(true);
       return;
@@ -59,6 +72,18 @@ export class OrdersGateway implements OnGatewayConnection {
       await client.join(STAFF_ROOM);
     }
     this.logger.debug({ userId: user.id, role: user.role }, 'socket joined');
+  }
+
+  // Токен из handshake.auth (сайт на другом домене) или cookie (тот же домен).
+  private async authenticate(client: Socket): Promise<SocketUser | null> {
+    const handshakeToken: unknown = (
+      client.handshake.auth as { token?: unknown }
+    ).token;
+    const token =
+      typeof handshakeToken === 'string'
+        ? handshakeToken
+        : readAccessToken(client.handshake.headers.cookie);
+    return token ? this.authService.userFromToken(token) : null;
   }
 
   orderCreated(order: StaffOrderDto): void {

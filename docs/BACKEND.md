@@ -209,11 +209,14 @@ Dockerfile            многоступенчатая сборка; при ст
 
 - `OrdersGateway` (socket.io), namespace `/orders`. CORS и cookie —
   `SocketIoAdapter` в `main.ts` (тот же `FRONTEND_URL`, `credentials`).
-- При подключении — токен из `handshake.auth.token` (сайт на другом домене:
+- Вход проверяет middleware namespace (`afterInit` → `server.use`), до
+  подключения: токен из `handshake.auth.token` (сайт на другом домене:
   берёт его через `GET /auth/socket-token`, JWT на 60 с с `purpose: 'socket'`,
   для REST не годится) или cookie `access_token` из заголовка
   (`readAccessToken`, тот же домен) → `AuthService.userFromToken` (подпись, срок,
-  активный пользователь). Нет — `disconnect`. Комнаты: `user:<id>` всем,
+  активный пользователь). Нет — `connect_error` с `unauthorized`, события
+  `connect` клиент не получает и повторяет попытку сам (фронт — с растущей
+  паузой). Комнаты: `user:<id>` всем,
   `staff` — бариста, менеджеру, админу.
 - События, **после** записи в БД:
   - `order.created` → `staff`, `StaffOrderDto`;
