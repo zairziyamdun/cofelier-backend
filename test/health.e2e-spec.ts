@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 
 import { AppModule } from '../src/app.module';
+import { configureApp } from '../src/app.setup';
 
 // Нужна живая БД: `docker compose up -d db` и DATABASE_URL в .env.
 describe('Health (e2e)', () => {
@@ -15,7 +16,7 @@ describe('Health (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api');
+    configureApp(app);
     await app.init();
   });
 
