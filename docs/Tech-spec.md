@@ -9,14 +9,16 @@
 | NestJS 11 (`@nestjs/core`, `platform-express`) | HTTP-фреймворк, DI, модули |
 | TypeScript 5 | язык |
 | RxJS 7 | зависимость Nest |
+| PostgreSQL 16 (`postgres:16-alpine`, docker-compose) | БД |
+| Prisma 7.10 (`prisma`, `@prisma/client`, `@prisma/adapter-pg` + `pg`) | ORM, миграции; генератор `prisma-client`, CJS |
+| `@nestjs/config` + zod 4 | конфиг и проверка env |
+| dotenv | `.env` для Prisma CLI в `prisma.config.ts` |
+| Docker (node:22-alpine), GitHub Actions | образ API, CI |
 
 ## План
 
 | Технология | Этап | Для чего |
 | --- | --- | --- |
-| PostgreSQL 16 (docker-compose) | 1 | БД |
-| Prisma (`prisma`, `@prisma/client`) | 1 | ORM, миграции, сиды |
-| `@nestjs/config` + zod | 1 | конфиг и проверка env |
 | `@nestjs/swagger` | 2 | документация и контракт для фронта |
 | `class-validator`, `class-transformer` | 2 | валидация DTO |
 | `@nestjs/passport`, `passport-jwt`, `passport-local`, `@nestjs/jwt` | 3 | вход и JWT |
@@ -24,7 +26,7 @@
 | `argon2` | 3 | хеш паролей |
 | `@nestjs/throttler` | 3 | лимит на вход |
 | `@nestjs/websockets`, `@nestjs/platform-socket.io` | 5 | живая панель заказов |
-| Docker, GitHub Actions | 1, 6 | CI и деплой |
+| деплой образа | 6 | автодеплой по пушу в `main` |
 
 ## Качество и тесты
 

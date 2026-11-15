@@ -1,0 +1,12 @@
+// Схема БД Cofelier. Модели появляются по этапам (docs/BACKEND.md §4):
+// меню — этап 2, пользователи и роли — этап 3, заказы — этап 5.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}

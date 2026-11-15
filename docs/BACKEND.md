@@ -12,21 +12,26 @@ NestJS 11 + Prisma + PostgreSQL, REST + WebSocket. Что за продукт �
 
 ```
 src/
-  main.ts             bootstrap: порт 4000, ValidationPipe, CORS, cookie, Swagger   (есть: порт)
-  app.module.ts       корневой модуль                                              (есть)
-  config/             zod-схема env, ConfigModule                                  (план, этап 1)
-  prisma/             PrismaModule, PrismaService (global)                         (план, этап 1)
+  main.ts             bootstrap: порт, префикс /api, CORS, shutdown hooks          (есть)
+                      ValidationPipe, cookie, Swagger                              (план, этапы 2–3)
+  app.module.ts       корневой модуль: ConfigModule, PrismaModule, HealthModule    (есть)
+  config/             zod-схема env (env.ts), проверка при старте                  (есть)
+  prisma/             PrismaModule, PrismaService (global, adapter-pg)             (есть)
+  generated/prisma/   сгенерированный клиент Prisma, не коммитится                 (есть)
+  health/             GET /api/health — API жив и видит БД                         (есть)
   common/             декораторы @Public, @Roles, @CurrentUser; guards; фильтры    (план, этап 3)
   auth/               вход, регистрация, JWT, стратегии Passport                   (план, этап 3)
   users/              пользователи и роли                                          (план, этап 3)
   menu/               категории, позиции, цены, стоп-лист                          (план, этап 2)
   orders/             заказы, статусы, WebSocket-шлюз                              (план, этап 5)
 prisma/
-  schema.prisma       схема БД                                                     (план, этап 1)
-  migrations/         миграции
-  seed.ts             меню с примерными ценами
-test/                 e2e (supertest)
-docker-compose.yml    API + PostgreSQL                                             (план, этап 1)
+  schema.prisma       схема БД (пока без моделей)                                  (есть)
+  migrations/         миграции                                                     (с этапа 2)
+  seed.ts             меню с примерными ценами                                     (план, этап 2)
+prisma.config.ts      конфиг Prisma CLI: путь схемы, миграций, DATABASE_URL        (есть)
+test/                 e2e (supertest), нужна БД                                    (есть: health)
+docker-compose.yml    db (PostgreSQL 16) + api                                     (есть)
+Dockerfile            многоступенчатая сборка; при старте — migrate deploy         (есть)
 ```
 
 ### Связи модулей
@@ -77,8 +82,8 @@ docker-compose.yml    API + PostgreSQL                                          
 
 ## 3. API и ошибки
 
-- Префикс `/api` (план): `app.setGlobalPrefix('api')`; Swagger —
-  `/api/docs`, JSON — `/api/docs-json`.
+- Префикс `/api` (есть): `app.setGlobalPrefix('api')`; Swagger (план,
+  этап 2) — `/api/docs`, JSON — `/api/docs-json`.
 - Пути — существительные во множественном числе, `kebab-case`; поля JSON —
   `camelCase` (как в Prisma и TS).
 - Списки с пагинацией — `{ items, total, page, pageSize }`.
@@ -112,15 +117,18 @@ docker-compose.yml    API + PostgreSQL                                          
 
 ## 6. Окружение
 
-Переменные валидируются zod-схемой при старте (план, этап 1); новая
-переменная — в схему и в `.env.example` в том же PR.
+Переменные проверяются zod-схемой `src/config/env.ts` при старте: неполный
+env роняет приложение сразу с перечнем ошибок. Читать — через
+`ConfigService<Env, true>` с `{ infer: true }`, не через `process.env`.
+Новая переменная — в схему и в `.env.example` в том же PR.
 
-| Переменная | Для чего |
-| --- | --- |
-| `PORT` | порт API, по умолчанию 4000 |
-| `DATABASE_URL` | строка подключения PostgreSQL |
-| `JWT_SECRET`, `JWT_EXPIRES_IN` | подпись и срок токена |
-| `FRONTEND_URL` | разрешённый origin для CORS |
+| Переменная | Для чего | Есть |
+| --- | --- | --- |
+| `NODE_ENV` | `development` / `test` / `production` | ✔ |
+| `PORT` | порт API, по умолчанию 4000 | ✔ |
+| `DATABASE_URL` | строка подключения PostgreSQL | ✔ |
+| `FRONTEND_URL` | разрешённый origin для CORS, по умолчанию `http://localhost:3000` | ✔ |
+| `JWT_SECRET`, `JWT_EXPIRES_IN` | подпись и срок токена | этап 3 |
 
 ---
 

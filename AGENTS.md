@@ -97,8 +97,9 @@ src/<module>/
 
 ## CI и PR
 
-- GitHub Actions на каждый PR в `main`: lint, typecheck, unit, build
-  (этап 1 — настроить); e2e с сервисом PostgreSQL — с этапа 2.
+- GitHub Actions (`.github/workflows/ci.yml`) на каждый PR в `main`: джоба
+  `check` (lint, typecheck, unit, build) и `e2e` (PostgreSQL как сервис,
+  `db:deploy`, `test:e2e`). Слияние — после зелёных обеих.
 - Перед PR — скилл `/pre-pr-review`, отчёт `READY` / `READY WITH WARNINGS` /
   `BLOCKED` / `INCOMPLETE`. С `BLOCKED` PR не создаём.
 - Отклонение от правила — `policy-exception: <ID> <причина>` у кода и строка
@@ -126,8 +127,20 @@ pnpm typecheck     # tsc --noEmit
 pnpm test          # jest unit
 pnpm test:e2e      # jest e2e (нужна БД)
 pnpm format        # prettier
+
+docker compose up -d db          # только PostgreSQL для разработки (:5432)
+docker compose up -d --build     # API + PostgreSQL в контейнерах
+pnpm db:migrate --name <name>    # новая миграция (prisma migrate dev)
+pnpm db:deploy                   # применить миграции (как в CI и Docker)
+pnpm db:studio                   # Prisma Studio
 ```
 
-Планируются (этап 1–2): `docker compose up -d` (API + PostgreSQL),
-`pnpm prisma migrate dev`, `pnpm prisma db seed`, Swagger на
-`http://localhost:4000/api/docs`.
+Первый запуск: `cp .env.example .env` → `docker compose up -d db` →
+`pnpm install` (postinstall делает `prisma generate`) → `pnpm start:dev` →
+`http://localhost:4000/api/health`.
+
+Prisma 7: адрес БД — в `prisma.config.ts`, клиент генерируется в
+`src/generated/prisma` (не коммитится), подключение — через `@prisma/adapter-pg`.
+
+Планируются: `pnpm prisma db seed` (этап 2), Swagger на
+`http://localhost:4000/api/docs` (этап 2).
