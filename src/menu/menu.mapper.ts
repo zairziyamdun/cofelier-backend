@@ -1,4 +1,8 @@
 import type { MenuCategory, MenuItem } from '../generated/prisma/client';
+import {
+  ManagedMenuCategoryDto,
+  ManagedMenuItemDto,
+} from './dto/menu-manage.dto';
 import { MenuCategoryDto, MenuItemDto } from './dto/menu-response.dto';
 
 export function toMenuItemDto(item: MenuItem): MenuItemDto {
@@ -21,5 +25,24 @@ export function toMenuCategoryDto(
     slug: category.slug,
     name: category.name,
     items: category.items.map(toMenuItemDto),
+  };
+}
+
+export function toManagedMenuItemDto(item: MenuItem): ManagedMenuItemDto {
+  return {
+    ...toMenuItemDto(item),
+    categoryId: item.categoryId,
+    inStopList: item.inStopList,
+  };
+}
+
+export function toManagedMenuCategoryDto(
+  category: MenuCategory & { items: MenuItem[] },
+): ManagedMenuCategoryDto {
+  return {
+    id: category.id,
+    slug: category.slug,
+    name: category.name,
+    items: category.items.map(toManagedMenuItemDto),
   };
 }
