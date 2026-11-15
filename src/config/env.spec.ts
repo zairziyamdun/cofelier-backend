@@ -35,4 +35,70 @@ describe('validateEnv', () => {
       /JWT_SECRET/,
     );
   });
+
+  describe('первый админ', () => {
+    const admin = {
+      ADMIN_EMAIL: ' Admin@Cofelier.KZ ',
+      ADMIN_PASSWORD: 'long-enough-pass',
+    };
+
+    it('не задан (в том числе пустые строки) — выключено', () => {
+      const env = validateEnv({
+        ...base,
+        ADMIN_EMAIL: '',
+        ADMIN_PASSWORD: '',
+        ADMIN_RESET_PASSWORD: '',
+      });
+      expect(env.ADMIN_EMAIL).toBeUndefined();
+      expect(env.ADMIN_PASSWORD).toBeUndefined();
+      expect(env.ADMIN_RESET_PASSWORD).toBe(false);
+    });
+
+    it('почта нормализуется, сброс по умолчанию выключен', () => {
+      const env = validateEnv({ ...base, ...admin });
+      expect(env.ADMIN_EMAIL).toBe('admin@cofelier.kz');
+      expect(env.ADMIN_RESET_PASSWORD).toBe(false);
+      expect(
+        validateEnv({ ...base, ...admin, ADMIN_RESET_PASSWORD: 'TRUE' })
+          .ADMIN_RESET_PASSWORD,
+      ).toBe(true);
+    });
+
+    it('только одна из двух переменных — ошибка', () => {
+      expect(() =>
+        validateEnv({ ...base, ADMIN_EMAIL: admin.ADMIN_EMAIL }),
+      ).toThrow(/ADMIN_PASSWORD: ADMIN_EMAIL и ADMIN_PASSWORD задаются вместе/);
+      expect(() =>
+        validateEnv({ ...base, ADMIN_PASSWORD: admin.ADMIN_PASSWORD }),
+      ).toThrow(/ADMIN_EMAIL: ADMIN_EMAIL и ADMIN_PASSWORD задаются вместе/);
+    });
+
+    it('слабый пароль — ошибка, и значение не попадает в сообщение', () => {
+      const short = 'eleven-char';
+      expect(() =>
+        validateEnv({ ...base, ...admin, ADMIN_PASSWORD: short }),
+      ).toThrow(/ADMIN_PASSWORD: пароль админа — от 12 символов/);
+      try {
+        validateEnv({ ...base, ...admin, ADMIN_PASSWORD: short });
+      } catch (error) {
+        expect(String(error)).not.toContain(short);
+      }
+      expect(() =>
+        validateEnv({
+          ...base,
+          ADMIN_EMAIL: 'admin-pass@x.kz',
+          ADMIN_PASSWORD: 'ADMIN-PASS@X.KZ',
+        }),
+      ).toThrow(/ADMIN_PASSWORD/);
+    });
+
+    it('сброс без почты и пароля — ошибка, кривое значение — ошибка', () => {
+      expect(() =>
+        validateEnv({ ...base, ADMIN_RESET_PASSWORD: 'true' }),
+      ).toThrow(/ADMIN_RESET_PASSWORD/);
+      expect(() =>
+        validateEnv({ ...base, ...admin, ADMIN_RESET_PASSWORD: 'yes' }),
+      ).toThrow(/ADMIN_RESET_PASSWORD/);
+    });
+  });
 });
