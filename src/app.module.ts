@@ -9,6 +9,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { validateEnv } from './config/env';
 import { HealthModule } from './health/health.module';
 import { MenuModule } from './menu/menu.module';
+import { OrdersModule } from './orders/orders.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 
@@ -22,6 +23,7 @@ import { UsersModule } from './users/users.module';
     MenuModule,
     UsersModule,
     AuthModule,
+    OrdersModule,
   ],
   providers: [
     // Порядок важен: сначала «кто» (JWT), потом «можно ли» (роль).

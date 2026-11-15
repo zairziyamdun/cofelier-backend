@@ -6,7 +6,7 @@ NestJS 11 + Prisma + PostgreSQL, REST + WebSocket, Swagger, pnpm. Коммент
 
 Этот файл — главный файл правил для агентов. `CLAUDE.md` только подключает его.
 
-**Текущий этап:** 4 — админка меню (см. [docs/OVERVIEW.md](docs/OVERVIEW.md), «Этапы»).
+**Текущий этап:** 5 — заказы (см. [docs/OVERVIEW.md](docs/OVERVIEW.md), «Этапы»).
 
 ## Главное
 
