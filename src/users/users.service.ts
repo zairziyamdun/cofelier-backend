@@ -1,10 +1,19 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { Prisma, type Role, type User } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { UserDto } from './dto/user-response.dto';
+import {
+  CreateStaffDto,
+  isStaffRole,
+  StaffDto,
+  UpdateStaffDto,
+} from './dto/staff.dto';
 import { hashPassword, normalizeEmail } from './password';
-import { toUserDto } from './users.mapper';
+import { toStaffDto } from './users.mapper';
 
 type CreateUserInput = {
   email: string;
@@ -49,12 +58,42 @@ export class UsersService {
     }
   }
 
-  // Сотрудники для админки: все, кроме клиентов.
-  async listStaff(): Promise<UserDto[]> {
+  // Сотрудники для админки: все, кроме клиентов; активные сверху.
+  async listStaff(): Promise<StaffDto[]> {
     const staff = await this.prisma.user.findMany({
       where: { role: { not: 'client' } },
-      orderBy: [{ role: 'asc' }, { name: 'asc' }],
+      orderBy: [{ isActive: 'desc' }, { role: 'asc' }, { name: 'asc' }],
     });
-    return staff.map(toUserDto);
+    return staff.map(toStaffDto);
+  }
+
+  async createStaff(dto: CreateStaffDto): Promise<StaffDto> {
+    return toStaffDto(await this.create(dto));
+  }
+
+  // Себе роль не меняем и себя не отключаем: так в системе всегда остаётся
+  // хотя бы один действующий админ (править сотрудников может только админ).
+  async updateStaff(
+    actorId: number,
+    id: number,
+    dto: UpdateStaffDto,
+  ): Promise<StaffDto> {
+    const target = await this.prisma.user.findUnique({ where: { id } });
+    if (!target || !isStaffRole(target.role)) {
+      throw new NotFoundException('Сотрудник не найден');
+    }
+    if (id === actorId) {
+      if (dto.role !== undefined && dto.role !== target.role) {
+        throw new ConflictException('Свою роль изменить нельзя');
+      }
+      if (dto.isActive === false) {
+        throw new ConflictException('Себя отключить нельзя');
+      }
+    }
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { role: dto.role, isActive: dto.isActive },
+    });
+    return toStaffDto(updated);
   }
 }
