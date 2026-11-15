@@ -13,6 +13,8 @@ import type { JwtPayload } from './jwt.strategy';
 
 export type Session = { user: UserDto; accessToken: string };
 
+const SOCKET_TOKEN_TTL_SECONDS = 60;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -35,6 +37,16 @@ export class AuthService {
     } catch {
       return null;
     }
+  }
+
+  // Сайт и API на разных доменах (Vercel и Railway): cookie сайта до WebSocket
+  // API не доходит, поэтому сайт берёт этот токен через свой прокси и передаёт
+  // его при подключении. Живёт минуту — только чтобы подключиться.
+  async createSocketToken(userId: number): Promise<string> {
+    const payload: JwtPayload = { sub: userId, purpose: 'socket' };
+    return this.jwtService.signAsync(payload, {
+      expiresIn: SOCKET_TOKEN_TTL_SECONDS,
+    });
   }
 
   // Одно сообщение на «нет такой почты» и «неверный пароль»: не выдаём, кто зарегистрирован.

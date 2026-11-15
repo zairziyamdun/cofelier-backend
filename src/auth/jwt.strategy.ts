@@ -9,7 +9,8 @@ import type { Env } from '../config/env';
 import { UsersService } from '../users/users.service';
 import { ACCESS_TOKEN_COOKIE } from './auth-cookie';
 
-export type JwtPayload = { sub: number };
+// purpose: 'socket' — короткий токен только для подключения к WebSocket.
+export type JwtPayload = { sub: number; purpose?: 'socket' };
 
 function fromCookie(request: Request): string | null {
   const cookies = request.cookies as Record<string, string> | undefined;
@@ -32,6 +33,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // Роль и активность — из БД на каждый запрос: смена роли и отключение
   // сотрудника действуют сразу, а не после истечения токена.
   async validate(payload: JwtPayload): Promise<AuthUser | null> {
+    // Токен сокета не годится для REST, даже если его подложат в cookie.
+    if (payload.purpose === 'socket') return null;
     const user = await this.usersService.findActiveById(payload.sub);
     if (!user) return null;
     return { id: user.id, email: user.email, name: user.name, role: user.role };
