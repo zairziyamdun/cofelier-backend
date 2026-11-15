@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { Prisma, type Role, type User } from '../generated/prisma/client';
+import { isUniqueViolation } from '../common/prisma-errors';
+import type { Role, User } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateStaffDto,
@@ -47,11 +48,8 @@ export class UsersService {
         },
       });
     } catch (error) {
-      // P2002 — нарушена уникальность email, в том числе при гонке двух регистраций.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
+      // Почта занята, в том числе при гонке двух регистраций.
+      if (isUniqueViolation(error)) {
         throw new ConflictException('Эта почта уже зарегистрирована');
       }
       throw error;

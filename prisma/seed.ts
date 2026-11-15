@@ -1,10 +1,11 @@
-// Сиды: меню с примерными ценами в тенге и первый админ.
+// Сиды для локальной разработки: меню с примерными ценами в тенге.
+// Первого админа создаёт API при старте из ADMIN_EMAIL/ADMIN_PASSWORD
+// (src/users/admin-bootstrap.service.ts), не сиды.
 // Повторный запуск обновляет записи по slug категории и названию позиции, не дублируя их.
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../src/generated/prisma/client';
-import { hashPassword, normalizeEmail } from '../src/users/password';
 
 type SeedItem = {
   name: string;
@@ -192,36 +193,9 @@ async function main() {
         }
       }
     }
-
-    await seedAdmin(prisma);
   } finally {
     await prisma.$disconnect();
   }
-}
-
-// Первый админ из ADMIN_EMAIL и ADMIN_PASSWORD: пароль в коде не хранится.
-// Уже существующему пользователю пароль не меняем — только роль и активность.
-async function seedAdmin(prisma: PrismaClient) {
-  const email = process.env.ADMIN_EMAIL;
-  const password = process.env.ADMIN_PASSWORD;
-  if (!email || !password) {
-    process.stdout.write(
-      'ADMIN_EMAIL/ADMIN_PASSWORD не заданы — админ пропущен\n',
-    );
-    return;
-  }
-  const normalized = normalizeEmail(email);
-  await prisma.user.upsert({
-    where: { email: normalized },
-    update: { role: 'admin', isActive: true },
-    create: {
-      email: normalized,
-      passwordHash: await hashPassword(password),
-      name: 'Администратор',
-      role: 'admin',
-    },
-  });
-  process.stdout.write(`Админ: ${normalized}\n`);
 }
 
 main().catch((error: unknown) => {
