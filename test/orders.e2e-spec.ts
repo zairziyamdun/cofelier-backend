@@ -348,9 +348,25 @@ describe('Заказы (e2e)', () => {
       .expect(401);
   });
 
-  it('WebSocket без входа отключается', async () => {
+  it('WebSocket без входа получает отказ до подключения', async () => {
     const anonymous = connect();
-    await nextEvent(anonymous, 'disconnect');
-    expect(anonymous.connected).toBe(false);
+    let connected = false;
+    anonymous.on('connect', () => {
+      connected = true;
+    });
+    const error = await nextEvent<Error>(anonymous, 'connect_error');
+    expect(error.message).toBe('unauthorized');
+    expect(connected).toBe(false);
+  });
+
+  it('WebSocket с недействительным токеном получает отказ', async () => {
+    const socket = io(`${baseUrl}/orders`, {
+      transports: ['websocket'],
+      forceNew: true,
+      auth: { token: 'not-a-jwt' },
+    });
+    sockets.push(socket);
+    const error = await nextEvent<Error>(socket, 'connect_error');
+    expect(error.message).toBe('unauthorized');
   });
 });
