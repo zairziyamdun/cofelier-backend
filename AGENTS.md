@@ -6,7 +6,7 @@ NestJS 11 + Prisma + PostgreSQL, REST + WebSocket, Swagger, pnpm. Коммент
 
 Этот файл — главный файл правил для агентов. `CLAUDE.md` только подключает его.
 
-**Текущий этап:** 2 — меню (см. [docs/OVERVIEW.md](docs/OVERVIEW.md), «Этапы»).
+**Текущий этап:** 3 — вход и роли (см. [docs/OVERVIEW.md](docs/OVERVIEW.md), «Этапы»).
 
 ## Главное
 
@@ -72,11 +72,14 @@ src/<module>/
 
 ## Авторизация
 
-- Passport (`local` для входа, `jwt` для запросов). JWT — в `httpOnly`,
-  `secure` (в проде), `sameSite: 'lax'` cookie `access_token`; в теле ответа
-  токен не отдаётся.
-- Пароли — `argon2` (или `bcrypt`), хеш в `passwordHash`; в логи и ответы не
-  попадает.
+- Вход — `AuthService` + DTO, запросы — Passport `jwt` (`JwtStrategy`) из
+  `httpOnly`-cookie `access_token` (`secure` в проде, `sameSite: 'lax'`); в
+  теле ответа токен не отдаётся. Подробно — BACKEND.md §2.
+- В токене только `sub`; роль и активность — из БД на каждый запрос.
+- Пароли — `argon2id` (`users/password.ts`), хеш в `passwordHash`; в логи и
+  ответы не попадает.
+- В e2e пользователи создаются через `testUsers(() => app, '<файл>')` из
+  `test/helpers/users.ts`: свой домен на файл, файлы идут параллельно.
 - CORS — только адрес фронта из env, `credentials: true`.
 
 ## База

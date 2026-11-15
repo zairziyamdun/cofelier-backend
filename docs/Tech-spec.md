@@ -16,15 +16,15 @@
 | Docker (node:22-alpine), GitHub Actions | образ API, CI |
 | `@nestjs/swagger` 11 | Swagger UI и OpenAPI — контракт для фронта |
 | `class-validator`, `class-transformer` | валидация входных DTO (глобальный ValidationPipe) |
+| `@nestjs/passport` 11 + `passport-jwt`, `@nestjs/jwt` 11 | JWT из httpOnly-cookie |
+| `cookie-parser` | чтение cookie |
+| `argon2` (argon2id) | хеш паролей |
+| `@nestjs/throttler` 6 | лимит попыток входа и регистрации |
 
 ## План
 
 | Технология | Этап | Для чего |
 | --- | --- | --- |
-| `@nestjs/passport`, `passport-jwt`, `passport-local`, `@nestjs/jwt` | 3 | вход и JWT |
-| `cookie-parser` | 3 | JWT в httpOnly-cookie |
-| `argon2` | 3 | хеш паролей |
-| `@nestjs/throttler` | 3 | лимит на вход |
 | `@nestjs/websockets`, `@nestjs/platform-socket.io` | 5 | живая панель заказов |
 | деплой образа | 6 | автодеплой по пушу в `main` |
 
