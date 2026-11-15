@@ -11,6 +11,7 @@ function makeItem(overrides: Partial<MenuItem> = {}): MenuItem {
     price: 1500,
     imageUrl: null,
     inStopList: false,
+    isArchived: false,
     sortOrder: 0,
     createdAt: new Date(0),
     updatedAt: new Date(0),

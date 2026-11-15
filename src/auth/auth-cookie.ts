@@ -17,3 +17,17 @@ export function accessTokenCookieOptions(env: CookieEnv): CookieOptions {
     maxAge: env.JWT_TTL_SECONDS * 1000,
   };
 }
+
+// Токен из сырого заголовка Cookie — для WebSocket, где нет cookie-parser.
+export function readAccessToken(
+  cookieHeader: string | undefined,
+): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const [name, ...value] = part.trim().split('=');
+    if (name === ACCESS_TOKEN_COOKIE) {
+      return decodeURIComponent(value.join('='));
+    }
+  }
+  return null;
+}

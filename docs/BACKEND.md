@@ -27,7 +27,8 @@ src/
   menu/               MenuService — публичное меню (GET /api/menu)                (есть)
                       MenuAdminService — правка позиций, категорий, стоп-лист,
                       порядок категорий; slug.ts — транслит для slug          (есть)
-  orders/             заказы, статусы, WebSocket-шлюз                              (план, этап 5)
+  orders/             OrdersService, OrdersGateway (/orders), order-status.ts      (есть)
+socket-io.adapter.ts  Socket.IO с CORS сайта и cookie (подключается в main.ts)     (есть)
 prisma/
   schema.prisma       схема БД: MenuCategory, MenuItem                             (есть)
   migrations/         миграции, первая — init_menu                                 (есть)
@@ -99,10 +100,11 @@ Dockerfile            многоступенчатая сборка; при ст
 | `PATCH /menu/items/:id/stop-list` | ✔ | | | | ✔ | ✔ |
 | `POST /menu/categories`, `PATCH/DELETE /menu/categories/:id` | ✔ | | | | ✔ | ✔ |
 | `PUT /menu/categories/order` | ✔ | | | | ✔ | ✔ |
-| `POST /orders` | | | ✔ | | | |
-| `GET /orders/my` | | | ✔ | | | |
-| `GET /orders/queue` | | | | ✔ | ✔ | ✔ |
-| `PATCH /orders/:id/status` | | | | ✔ | ✔ | ✔ |
+| `POST /orders` | ✔ | | ✔ | | | |
+| `GET /orders/my` (только свои) | ✔ | | ✔ | | | |
+| `GET /orders/queue` | ✔ | | | ✔ | ✔ | ✔ |
+| `PATCH /orders/:id/status` | ✔ | | | ✔ | ✔ | ✔ |
+| WebSocket `/orders` | ✔ | | ✔ (свои заказы) | ✔ | ✔ | ✔ |
 | `GET /stats/sales` | | | | | ✔ | ✔ |
 | `POST/PATCH /users` (создать сотрудника, сменить роль) | | | | | | ✔ |
 
@@ -141,9 +143,13 @@ Dockerfile            многоступенчатая сборка; при ст
 - Модели (есть): `MenuCategory` (slug, name, sortOrder), `MenuItem`
   (name, description, portion, price, imageUrl, inStopList, sortOrder).
   Наружу `inStopList` уходит как `isAvailable` — видна, но не заказать.
-- Модели (план): `User` (email, passwordHash, role, name) — этап 3,
+- Модели (есть): `User` (email, passwordHash, role, name, isActive),
   `Order` (userId, status, total, comment, pickupAt) и `OrderItem`
-  (menuItemId, qty, price на момент заказа) — этап 5.
+  (menuItemId, name и price — копия на момент заказа, quantity).
+- `MenuItem.isArchived`: позиция, которая есть в заказах, при удалении
+  уходит в архив (скрыта из меню и панели, заказать нельзя), а не удаляется —
+  `OrderItem.menuItem` с `onDelete: Restrict`. Категорию, где остались только
+  архивные позиции, удалить нельзя (`409`), но она пустая и на сайте не видна.
 - Таблицы и колонки — `snake_case` через `@@map`/`@map`, поля в коде — `camelCase`.
 - Цена в `OrderItem` копируется при создании: правка меню не меняет старые
   заказы.
@@ -153,13 +159,36 @@ Dockerfile            многоступенчатая сборка; при ст
   (`new → accepted → preparing → ready → completed`, `cancelled` — из `new`
   и `accepted`).
 
-## 5. WebSocket (этап 5)
+### Заказы (есть)
 
-- `OrdersGateway` (`@nestjs/websockets`, socket.io), namespace `/orders`.
-- Авторизация при подключении — по той же cookie; клиент без роли
-  персонала в комнату `staff` не попадает.
-- События: `order.created`, `order.status-changed` — с DTO заказа. Шлются
-  сервисом **после** коммита транзакции.
+- Оформляет только клиент. В запросе — `menuItemId` и `quantity`; **цен и
+  суммы в запросе нет** (лишние поля — `400`), сумму и цены берёт сервер из
+  меню через `MenuService.findItemsForOrder` (модуль заказов в таблицы меню
+  не ходит).
+- Позиция в стоп-листе или архиве — `409` с названием позиции. Повтор одной
+  позиции в корзине — `400` («укажите количество»), до 20 штук и до 30 строк.
+- `pickupAt` — от «сейчас» (5 минут на часы клиента) до суток вперёд; не
+  передан — «как можно скорее».
+- Переходы — `orders/order-status.ts`: `new → accepted → preparing → ready →
+  completed`, `cancelled` — из `new` и `accepted`. Недопустимый — `409` с
+  названиями статусов.
+- Смена статуса — `updateMany` с условием на прежний статус: два бариста
+  одновременно не переведут заказ дважды (второй получит `409`).
+- Очередь — активные заказы (`new`…`ready`), старые сверху, с именем клиента.
+
+## 5. WebSocket (есть)
+
+- `OrdersGateway` (socket.io), namespace `/orders`. CORS и cookie —
+  `SocketIoAdapter` в `main.ts` (тот же `FRONTEND_URL`, `credentials`).
+- При подключении — cookie `access_token` из заголовка
+  (`readAccessToken`) → `AuthService.userFromToken` (подпись, срок,
+  активный пользователь). Нет — `disconnect`. Комнаты: `user:<id>` всем,
+  `staff` — бариста, менеджеру, админу.
+- События, **после** записи в БД:
+  - `order.created` → `staff`, `StaffOrderDto`;
+  - `order.updated` → `staff` — `StaffOrderDto`, `user:<владелец>` —
+    `OrderDto` (без имени клиента).
+- Один процесс API; несколько инстансов потребуют Redis-адаптер socket.io.
 
 ## 6. Окружение
 

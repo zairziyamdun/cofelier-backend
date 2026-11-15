@@ -25,5 +25,7 @@ import { JwtStrategy } from './jwt.strategy';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
+  // Заказы проверяют cookie при подключении к WebSocket.
+  exports: [AuthService],
 })
 export class AuthModule {}

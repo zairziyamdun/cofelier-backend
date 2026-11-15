@@ -20,12 +20,13 @@
 | `cookie-parser` | чтение cookie |
 | `argon2` (argon2id) | хеш паролей |
 | `@nestjs/throttler` 6 | лимит попыток входа и регистрации |
+| `@nestjs/websockets` 11 + `@nestjs/platform-socket.io`, socket.io 4.8 | живая очередь заказов |
+| socket.io-client (dev) | e2e WebSocket |
 
 ## План
 
 | Технология | Этап | Для чего |
 | --- | --- | --- |
-| `@nestjs/websockets`, `@nestjs/platform-socket.io` | 5 | живая панель заказов |
 | деплой образа | 6 | автодеплой по пушу в `main` |
 
 ## Качество и тесты

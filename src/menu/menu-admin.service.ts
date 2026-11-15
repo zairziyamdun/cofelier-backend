@@ -28,7 +28,9 @@ export class MenuAdminService {
   async getManagedMenu(): Promise<ManagedMenuCategoryDto[]> {
     const categories = await this.prisma.menuCategory.findMany({
       orderBy: orderBySort,
-      include: { items: { orderBy: orderBySort } },
+      include: {
+        items: { where: { isArchived: false }, orderBy: orderBySort },
+      },
     });
     return categories.map(toManagedMenuCategoryDto);
   }
@@ -89,8 +91,19 @@ export class MenuAdminService {
     return toManagedMenuItemDto(item);
   }
 
+  // Позиция из прошлых заказов не удаляется, а уходит в архив: история заказов цела.
   async deleteItem(id: number): Promise<void> {
     await this.findItemOrThrow(id);
+    const ordered = await this.prisma.orderItem.count({
+      where: { menuItemId: id },
+    });
+    if (ordered > 0) {
+      await this.prisma.menuItem.update({
+        where: { id },
+        data: { isArchived: true, inStopList: false },
+      });
+      return;
+    }
     await this.prisma.menuItem.delete({ where: { id } });
   }
 
@@ -130,12 +143,22 @@ export class MenuAdminService {
 
   async deleteCategory(id: number): Promise<void> {
     await this.assertCategoryExists(id);
-    const itemsCount = await this.prisma.menuItem.count({
-      where: { categoryId: id },
-    });
-    if (itemsCount > 0) {
+    const [active, archived] = await Promise.all([
+      this.prisma.menuItem.count({
+        where: { categoryId: id, isArchived: false },
+      }),
+      this.prisma.menuItem.count({
+        where: { categoryId: id, isArchived: true },
+      }),
+    ]);
+    if (active > 0) {
       throw new ConflictException(
         'В категории есть позиции: сначала удалите или перенесите их',
+      );
+    }
+    if (archived > 0) {
+      throw new ConflictException(
+        'В категории остались позиции из прошлых заказов — её нельзя удалить. Пустая категория и так не видна на сайте.',
       );
     }
     await this.prisma.menuCategory.delete({ where: { id } });
@@ -165,8 +188,11 @@ export class MenuAdminService {
 
   // ── Вспомогательное ────────────────────────────────────────────────
 
+  // Архивная позиция для панели не существует.
   private async findItemOrThrow(id: number) {
-    const item = await this.prisma.menuItem.findUnique({ where: { id } });
+    const item = await this.prisma.menuItem.findFirst({
+      where: { id, isArchived: false },
+    });
     if (!item) throw new NotFoundException('Позиция не найдена');
     return item;
   }

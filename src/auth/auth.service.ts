@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
+import type { AuthUser } from '../common/auth-user';
 import type { User } from '../generated/prisma/client';
 import { UserDto } from '../users/dto/user-response.dto';
 import { verifyPassword } from '../users/password';
@@ -18,6 +19,23 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
   ) {}
+
+  // Для WebSocket: та же проверка, что у JwtStrategy, — подпись, срок и активный пользователь.
+  async userFromToken(token: string): Promise<AuthUser | null> {
+    try {
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
+      const user = await this.usersService.findActiveById(payload.sub);
+      if (!user) return null;
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      };
+    } catch {
+      return null;
+    }
+  }
 
   // Одно сообщение на «нет такой почты» и «неверный пароль»: не выдаём, кто зарегистрирован.
   async login(dto: LoginDto): Promise<Session> {
