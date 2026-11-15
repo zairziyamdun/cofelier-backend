@@ -21,3 +21,6 @@ pnpm-debug.log*
 !.vscode/settings.json
 
 /src/generated/prisma
+
+# Генерируется pnpm openapi:export, копия для фронта — в cofelier-frontend/openapi
+/openapi.json

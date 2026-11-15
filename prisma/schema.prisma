@@ -12,3 +12,37 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model MenuCategory {
+  id        Int        @id @default(autoincrement())
+  // Стабильный идентификатор для URL и якорей на странице меню.
+  slug      String     @unique
+  name      String
+  sortOrder Int        @default(0) @map("sort_order")
+  items     MenuItem[]
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          Int          @id @default(autoincrement())
+  categoryId  Int          @map("category_id")
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name        String
+  description String?
+  // Объём или вес для подписи: «250 мл», «120 г».
+  portion     String?
+  // Цена в целых тенге: дробных сумм в меню нет.
+  price       Int
+  imageUrl    String?      @map("image_url")
+  // Стоп-лист: позиция видна в меню, но заказать её нельзя.
+  inStopList  Boolean      @default(false) @map("in_stop_list")
+  sortOrder   Int          @default(0) @map("sort_order")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([categoryId, sortOrder])
+  @@map("menu_items")
+}

@@ -14,13 +14,13 @@
 | `@nestjs/config` + zod 4 | конфиг и проверка env |
 | dotenv | `.env` для Prisma CLI в `prisma.config.ts` |
 | Docker (node:22-alpine), GitHub Actions | образ API, CI |
+| `@nestjs/swagger` 11 | Swagger UI и OpenAPI — контракт для фронта |
+| `class-validator`, `class-transformer` | валидация входных DTO (глобальный ValidationPipe) |
 
 ## План
 
 | Технология | Этап | Для чего |
 | --- | --- | --- |
-| `@nestjs/swagger` | 2 | документация и контракт для фронта |
-| `class-validator`, `class-transformer` | 2 | валидация DTO |
 | `@nestjs/passport`, `passport-jwt`, `passport-local`, `@nestjs/jwt` | 3 | вход и JWT |
 | `cookie-parser` | 3 | JWT в httpOnly-cookie |
 | `argon2` | 3 | хеш паролей |

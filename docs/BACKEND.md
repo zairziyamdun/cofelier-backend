@@ -12,24 +12,27 @@ NestJS 11 + Prisma + PostgreSQL, REST + WebSocket. Что за продукт �
 
 ```
 src/
-  main.ts             bootstrap: порт, префикс /api, CORS, shutdown hooks          (есть)
-                      ValidationPipe, cookie, Swagger                              (план, этапы 2–3)
-  app.module.ts       корневой модуль: ConfigModule, PrismaModule, HealthModule    (есть)
+  main.ts             bootstrap: порт, CORS, shutdown hooks, Swagger UI            (есть)
+  app.setup.ts        префикс /api, ValidationPipe, документ OpenAPI               (есть)
+  openapi-export.ts   openapi.json без БД (NestFactory preview)                    (есть)
+  app.module.ts       корневой модуль: Config, Prisma, Health, Menu                (есть)
   config/             zod-схема env (env.ts), проверка при старте                  (есть)
   prisma/             PrismaModule, PrismaService (global, adapter-pg)             (есть)
   generated/prisma/   сгенерированный клиент Prisma, не коммитится                 (есть)
   health/             GET /api/health — API жив и видит БД                         (есть)
-  common/             декораторы @Public, @Roles, @CurrentUser; guards; фильтры    (план, этап 3)
+  common/             декоратор @Public                                            (есть)
+                      @Roles, @CurrentUser, guards, фильтры                        (план, этап 3)
   auth/               вход, регистрация, JWT, стратегии Passport                   (план, этап 3)
   users/              пользователи и роли                                          (план, этап 3)
-  menu/               категории, позиции, цены, стоп-лист                          (план, этап 2)
+  menu/               GET /api/menu: категории с позициями, mapper, DTO           (есть)
+                      правка, цены, стоп-лист                                      (план, этап 4)
   orders/             заказы, статусы, WebSocket-шлюз                              (план, этап 5)
 prisma/
-  schema.prisma       схема БД (пока без моделей)                                  (есть)
-  migrations/         миграции                                                     (с этапа 2)
-  seed.ts             меню с примерными ценами                                     (план, этап 2)
+  schema.prisma       схема БД: MenuCategory, MenuItem                             (есть)
+  migrations/         миграции, первая — init_menu                                 (есть)
+  seed.ts             меню с примерными ценами, идемпотентно                       (есть)
 prisma.config.ts      конфиг Prisma CLI: путь схемы, миграций, DATABASE_URL        (есть)
-test/                 e2e (supertest), нужна БД                                    (есть: health)
+test/                 e2e (supertest), нужна БД с сидами                           (есть: health, menu)
 docker-compose.yml    db (PostgreSQL 16) + api                                     (есть)
 Dockerfile            многоступенчатая сборка; при старте — migrate deploy         (есть)
 ```
@@ -66,24 +69,29 @@ Dockerfile            многоступенчатая сборка; при ст
   `httpOnly`, `sameSite: 'lax'`, `secure` в проде. Выход — очистка cookie.
 - `GET /auth/me` — текущий пользователь; им пользуется фронт для redirect.
 
-### Матрица доступа (план; новая ручка — строка здесь в том же PR)
+### Матрица доступа (новая ручка — строка здесь в том же PR)
 
-| Ручка | Public | client | barista | manager | admin |
-| --- | --- | --- | --- | --- | --- |
-| `GET /menu` | ✔ | ✔ | ✔ | ✔ | ✔ |
-| `POST/PATCH/DELETE /menu/items` | | | | ✔ | ✔ |
-| `PATCH /menu/items/:id/stop-list` | | | | ✔ | ✔ |
-| `POST /orders` | | ✔ | | | |
-| `GET /orders/my` | | ✔ | | | |
-| `GET /orders/queue` | | | ✔ | ✔ | ✔ |
-| `PATCH /orders/:id/status` | | | ✔ | ✔ | ✔ |
-| `GET /stats/sales` | | | | ✔ | ✔ |
-| `GET/PATCH /users` (сотрудники, роли) | | | | | ✔ |
+Пути — без префикса `/api`. Колонка «Есть» — ручка уже в коде.
+
+| Ручка | Есть | Public | client | barista | manager | admin |
+| --- | --- | --- | --- | --- | --- | --- |
+| `GET /health` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| `GET /menu` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| `POST/PATCH/DELETE /menu/items` | | | | | ✔ | ✔ |
+| `PATCH /menu/items/:id/stop-list` | | | | | ✔ | ✔ |
+| `POST /orders` | | | ✔ | | | |
+| `GET /orders/my` | | | ✔ | | | |
+| `GET /orders/queue` | | | | ✔ | ✔ | ✔ |
+| `PATCH /orders/:id/status` | | | | ✔ | ✔ | ✔ |
+| `GET /stats/sales` | | | | | ✔ | ✔ |
+| `GET/PATCH /users` (сотрудники, роли) | | | | | | ✔ |
 
 ## 3. API и ошибки
 
-- Префикс `/api` (есть): `app.setGlobalPrefix('api')`; Swagger (план,
-  этап 2) — `/api/docs`, JSON — `/api/docs-json`.
+- Префикс `/api` и Swagger (есть): UI — `/api/docs`, JSON — `/api/docs-json`.
+  Тот же документ без запуска сервера — `pnpm openapi:export`.
+- Ответ — DTO ответа без обёртки; список без пагинации — массив
+  (`GET /menu` → `MenuCategoryDto[]`).
 - Пути — существительные во множественном числе, `kebab-case`; поля JSON —
   `camelCase` (как в Prisma и TS).
 - Списки с пагинацией — `{ items, total, page, pageSize }`.
@@ -95,13 +103,16 @@ Dockerfile            многоступенчатая сборка; при ст
 
 ## 4. БД и Prisma
 
-- Модели (план): `User` (email, passwordHash, role, name), `MenuCategory`,
-  `MenuItem` (price, isAvailable/inStopList, imageUrl), `Order` (userId,
-  status, total, comment, pickupAt), `OrderItem` (menuItemId, qty, price на
-  момент заказа).
+- Модели (есть): `MenuCategory` (slug, name, sortOrder), `MenuItem`
+  (name, description, portion, price, imageUrl, inStopList, sortOrder).
+  Наружу `inStopList` уходит как `isAvailable` — видна, но не заказать.
+- Модели (план): `User` (email, passwordHash, role, name) — этап 3,
+  `Order` (userId, status, total, comment, pickupAt) и `OrderItem`
+  (menuItemId, qty, price на момент заказа) — этап 5.
+- Таблицы и колонки — `snake_case` через `@@map`/`@map`, поля в коде — `camelCase`.
 - Цена в `OrderItem` копируется при создании: правка меню не меняет старые
   заказы.
-- Деньги — `Int` в тиынах или `Decimal`, не `Float`.
+- Деньги — `Int` в целых тенге, не `Float`.
 - Создание заказа с позициями — одна `$transaction`.
 - Переход статуса — проверка допустимого перехода в сервисе
   (`new → accepted → preparing → ready → completed`, `cancelled` — из `new`

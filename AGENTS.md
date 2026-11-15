@@ -6,7 +6,7 @@ NestJS 11 + Prisma + PostgreSQL, REST + WebSocket, Swagger, pnpm. Коммент
 
 Этот файл — главный файл правил для агентов. `CLAUDE.md` только подключает его.
 
-**Текущий этап:** 1 — каркас (см. [docs/OVERVIEW.md](docs/OVERVIEW.md), «Этапы»).
+**Текущий этап:** 2 — меню (см. [docs/OVERVIEW.md](docs/OVERVIEW.md), «Этапы»).
 
 ## Главное
 
@@ -22,7 +22,9 @@ NestJS 11 + Prisma + PostgreSQL, REST + WebSocket, Swagger, pnpm. Коммент
   (`whitelist`, `forbidNonWhitelisted`, `transform`). Ответ — DTO ответа, а
   не строка БД целиком (без `passwordHash`).
 - **Swagger — контракт для фронта:** у каждой ручки и DTO — декораторы
-  `@nestjs/swagger`; фронт генерирует типы из `/api/docs-json`.
+  `@nestjs/swagger` (nullable-поле — `@ApiProperty({ type: String, nullable: true })`);
+  фронт генерирует типы из `pnpm openapi:export`. Настройка приложения —
+  одна, `src/app.setup.ts`: её зовут `main.ts`, e2e и экспорт.
 - **После правок:** `pnpm lint:check` + `pnpm typecheck` + `pnpm test`; если
   тронута БД — ещё `pnpm test:e2e` с поднятым docker-compose.
 - Код — источник истины: если док разошёлся с кодом, док правится в том же
@@ -80,9 +82,9 @@ src/<module>/
 ## База
 
 - Схема — `prisma/schema.prisma`; изменение схемы — только миграцией
-  `pnpm prisma migrate dev --name <snake_case>`; миграции не правятся после
-  слияния в `main`.
-- Деньги — целое число в тиынах (`Int`) или `Decimal`, не `Float`.
+  `pnpm db:migrate --name <snake_case>`; миграции не правятся после
+  слияния в `main`. Таблицы и колонки — `snake_case` через `@@map`/`@map`.
+- Деньги — `Int` в целых тенге (дробных сумм в меню нет), не `Float`.
 - Несколько записей, которые должны измениться вместе (заказ + его позиции),
   — в `prisma.$transaction`.
 - Сиды — `prisma/seed.ts` (меню с примерными ценами в тенге).
@@ -99,7 +101,7 @@ src/<module>/
 
 - GitHub Actions (`.github/workflows/ci.yml`) на каждый PR в `main`: джоба
   `check` (lint, typecheck, unit, build) и `e2e` (PostgreSQL как сервис,
-  `db:deploy`, `test:e2e`). Слияние — после зелёных обеих.
+  `db:deploy`, `db:seed`, `test:e2e`). Слияние — после зелёных обеих.
 - Перед PR — скилл `/pre-pr-review`, отчёт `READY` / `READY WITH WARNINGS` /
   `BLOCKED` / `INCOMPLETE`. С `BLOCKED` PR не создаём.
 - Отклонение от правила — `policy-exception: <ID> <причина>` у кода и строка
@@ -132,15 +134,17 @@ docker compose up -d db          # только PostgreSQL для разрабо
 docker compose up -d --build     # API + PostgreSQL в контейнерах
 pnpm db:migrate --name <name>    # новая миграция (prisma migrate dev)
 pnpm db:deploy                   # применить миграции (как в CI и Docker)
+pnpm db:seed                     # сиды меню (prisma/seed.ts), повторный запуск безопасен
 pnpm db:studio                   # Prisma Studio
+pnpm openapi:export [путь]       # openapi.json без подключения к БД (для фронта)
 ```
 
 Первый запуск: `cp .env.example .env` → `docker compose up -d db` →
-`pnpm install` (postinstall делает `prisma generate`) → `pnpm start:dev` →
-`http://localhost:4000/api/health`.
+`pnpm install` (postinstall делает `prisma generate`) → `pnpm db:deploy` →
+`pnpm db:seed` → `pnpm start:dev` → `http://localhost:4000/api/menu`,
+Swagger — `http://localhost:4000/api/docs`.
 
 Prisma 7: адрес БД — в `prisma.config.ts`, клиент генерируется в
 `src/generated/prisma` (не коммитится), подключение — через `@prisma/adapter-pg`.
-
-Планируются: `pnpm prisma db seed` (этап 2), Swagger на
-`http://localhost:4000/api/docs` (этап 2).
+`migrate dev` клиент **не** перегенерирует — после правки схемы
+`pnpm exec prisma generate`.
