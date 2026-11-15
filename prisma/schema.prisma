@@ -2,9 +2,11 @@
 // меню — этап 2, пользователи и роли — этап 3, заказы — этап 5.
 
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  moduleFormat = "cjs"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  // Импорты без расширения: иначе Jest (ts-jest) не находит ./x.js рядом с x.ts.
+  importFileExtension = ""
 }
 
 datasource db {
