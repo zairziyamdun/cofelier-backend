@@ -24,8 +24,9 @@ src/
   auth/               вход, регистрация, выход, /auth/me; JwtStrategy, cookie      (есть)
   users/              UsersService, пароли (argon2), GET /users/staff              (есть)
                       создание и правка сотрудников                                (план, этап 4)
-  menu/               GET /api/menu: категории с позициями, mapper, DTO           (есть)
-                      правка, цены, стоп-лист                                      (план, этап 4)
+  menu/               MenuService — публичное меню (GET /api/menu)                (есть)
+                      MenuAdminService — правка позиций, категорий, стоп-лист,
+                      порядок категорий; slug.ts — транслит для slug          (есть)
   orders/             заказы, статусы, WebSocket-шлюз                              (план, этап 5)
 prisma/
   schema.prisma       схема БД: MenuCategory, MenuItem                             (есть)
@@ -93,14 +94,32 @@ Dockerfile            многоступенчатая сборка; при ст
 | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout` | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | `GET /auth/me` | ✔ | | ✔ | ✔ | ✔ | ✔ |
 | `GET /users/staff` | ✔ | | | | | ✔ |
-| `POST/PATCH/DELETE /menu/items` | | | | | ✔ | ✔ |
-| `PATCH /menu/items/:id/stop-list` | | | | | ✔ | ✔ |
+| `GET /menu/manage` (все категории и позиции, со стоп-листом) | ✔ | | | | ✔ | ✔ |
+| `POST /menu/items`, `PATCH/DELETE /menu/items/:id` | ✔ | | | | ✔ | ✔ |
+| `PATCH /menu/items/:id/stop-list` | ✔ | | | | ✔ | ✔ |
+| `POST /menu/categories`, `PATCH/DELETE /menu/categories/:id` | ✔ | | | | ✔ | ✔ |
+| `PUT /menu/categories/order` | ✔ | | | | ✔ | ✔ |
 | `POST /orders` | | | ✔ | | | |
 | `GET /orders/my` | | | ✔ | | | |
 | `GET /orders/queue` | | | | ✔ | ✔ | ✔ |
 | `PATCH /orders/:id/status` | | | | ✔ | ✔ | ✔ |
 | `GET /stats/sales` | | | | | ✔ | ✔ |
 | `POST/PATCH /users` (создать сотрудника, сменить роль) | | | | | | ✔ |
+
+### Управление меню (есть)
+
+- `@Roles('manager', 'admin')` на всём `MenuAdminController`.
+- Новая позиция и категория — в конец (`sortOrder` = последний + 1).
+- `PATCH` позиции меняет только переданные поля; пустая строка в
+  `description` / `portion` — очистить (`@TrimToNull()`).
+- Категорию с позициями удалить нельзя — `409`; пустую — `204`.
+- Slug категории — транслит названия (`slug.ts`), дубль получает `-2`, `-3`;
+  при переименовании slug не меняется, чтобы не ломать ссылки `#якорь`.
+- Порядок категорий — `PUT /menu/categories/order` с id **всех** категорий,
+  одной транзакцией; неполный список — `400`.
+- Удаление позиции сейчас окончательное. С заказами (этап 5) позиция,
+  попавшая в заказ, должна скрываться, а не удаляться — `onDelete: Restrict`
+  на `OrderItem` это обеспечит.
 
 ## 3. API и ошибки
 
