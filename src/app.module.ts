@@ -16,8 +16,13 @@ import { UsersModule } from './users/users.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
-    // Лимит для ручек с ThrottlerGuard (вход, регистрация): 10 запросов в минуту с IP.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
+    // Лимит для ручек с ThrottlerGuard (вход, регистрация): 10 запросов в минуту
+    // с IP; сколько ждать — в заголовке Retry-After (секунды).
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 10 }],
+      errorMessage:
+        'Слишком много попыток. Подождите минуту и попробуйте снова',
+    }),
     PrismaModule,
     HealthModule,
     MenuModule,
