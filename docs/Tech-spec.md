@@ -20,6 +20,7 @@
 | `cookie-parser` | чтение cookie |
 | `argon2` (argon2id) | хеш паролей |
 | `@nestjs/throttler` 6 | лимит попыток входа и регистрации |
+| `helmet` 8 | заголовки безопасности HTTP |
 | `@nestjs/websockets` 11 + `@nestjs/platform-socket.io`, socket.io 4.8 | живая очередь заказов |
 | socket.io-client (dev) | e2e WebSocket |
 
