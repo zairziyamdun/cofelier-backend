@@ -1,12 +1,16 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 
 import { ACCESS_TOKEN_COOKIE } from './auth/auth-cookie';
 
 // Общая настройка приложения: её используют main.ts, e2e-тесты и экспорт OpenAPI.
 export function configureApp(app: INestApplication) {
   app.setGlobalPrefix('api');
+  // Заголовки безопасности (nosniff, frame-ancestors, CSP и др.); Swagger UI
+  // грузит свои скрипты и стили с того же хоста, поэтому CSP по умолчанию ему подходит.
+  app.use(helmet());
   // JWT приходит в httpOnly-cookie (этап 3), JwtStrategy читает его из req.cookies.
   app.use(cookieParser());
   app.useGlobalPipes(
