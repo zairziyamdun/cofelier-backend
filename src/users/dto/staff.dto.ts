@@ -9,6 +9,12 @@ import {
   MinLength,
 } from 'class-validator';
 
+import {
+  NewPassword,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULES_DESCRIPTION,
+} from '../../common/password-policy';
 import { Trim } from '../../common/transforms';
 import type { Role } from '../../generated/prisma/client';
 import { UserDto } from './user-response.dto';
@@ -39,12 +45,11 @@ export class CreateStaffDto {
 
   @ApiProperty({
     example: 'temporary-pass-2026',
-    minLength: 8,
-    description: 'Временный пароль — админ передаёт его сотруднику сам',
+    minLength: PASSWORD_MIN_LENGTH,
+    maxLength: PASSWORD_MAX_LENGTH,
+    description: `Временный пароль — админ передаёт его сотруднику сам. ${PASSWORD_RULES_DESCRIPTION}`,
   })
-  @IsString()
-  @MinLength(8, { message: 'Пароль — от 8 символов' })
-  @MaxLength(128, { message: 'Пароль — до 128 символов' })
+  @NewPassword()
   password!: string;
 
   @ApiProperty({ enum: STAFF_ROLES, enumName: 'StaffRole' })

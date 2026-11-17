@@ -1,6 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
 
+import {
+  NewPassword,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULES_DESCRIPTION,
+} from '../../common/password-policy';
 import { Trim } from '../../common/transforms';
 
 export class RegisterDto {
@@ -17,9 +23,12 @@ export class RegisterDto {
   @MaxLength(254)
   email!: string;
 
-  @ApiProperty({ example: 'correct-horse-battery', minLength: 8 })
-  @IsString()
-  @MinLength(8, { message: 'Пароль — от 8 символов' })
-  @MaxLength(128, { message: 'Пароль — до 128 символов' })
+  @ApiProperty({
+    example: 'coffee-time-42',
+    minLength: PASSWORD_MIN_LENGTH,
+    maxLength: PASSWORD_MAX_LENGTH,
+    description: PASSWORD_RULES_DESCRIPTION,
+  })
+  @NewPassword()
   password!: string;
 }
