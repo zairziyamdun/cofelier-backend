@@ -10,7 +10,10 @@ import type {
   ManagedMenuCategoryDto,
   ManagedMenuItemDto,
 } from '../src/menu/dto/menu-manage.dto';
-import type { MenuCategoryDto } from '../src/menu/dto/menu-response.dto';
+import type {
+  MenuCategoryDto,
+  MenuItemDto,
+} from '../src/menu/dto/menu-response.dto';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { testUsers } from './helpers/users';
 
@@ -202,6 +205,39 @@ describe('Управление меню (e2e)', () => {
       .find((menuItem) => menuItem.id === old.id);
     expect(publicOld?.badges).toEqual(['seasonal', 'decaf']);
     expect(publicOld).not.toHaveProperty('manualBadges');
+
+    // «Популярно» вручную: да → на витрине первым; нет → не на витрине; авто — по заказам.
+    const forced = await api()
+      .patch(`/api/menu/items/${old.id}`)
+      .set('Cookie', managerCookie)
+      .send({ popularOverride: true })
+      .expect(200);
+    expect(forced.body as ManagedMenuItemDto).toMatchObject({
+      popularOverride: true,
+      autoPopular: false,
+    });
+    expect((forced.body as ManagedMenuItemDto).badges[0]).toBe('popular');
+    const showcase = async () =>
+      (
+        (await api().get('/api/menu/popular?limit=12').expect(200))
+          .body as MenuItemDto[]
+      ).map((menuItem) => menuItem.id);
+    expect((await showcase())[0]).toBe(old.id);
+
+    await api()
+      .patch(`/api/menu/items/${old.id}`)
+      .set('Cookie', managerCookie)
+      .send({ popularOverride: false })
+      .expect(200);
+    expect(await showcase()).not.toContain(old.id);
+
+    const auto = await api()
+      .patch(`/api/menu/items/${old.id}`)
+      .set('Cookie', managerCookie)
+      .send({ popularOverride: null })
+      .expect(200);
+    expect((auto.body as ManagedMenuItemDto).popularOverride).toBeNull();
+    expect((auto.body as ManagedMenuItemDto).badges).not.toContain('popular');
 
     const wrong = await post({ name: 'Ошибка', manualBadges: ['hot'] }).expect(
       400,

@@ -13,7 +13,10 @@ const noPopular = { now, popularIds: new Set<number>() };
 describe('menu badges', () => {
   it('без меток — пустой список', () => {
     expect(
-      computeBadges({ id: 1, badges: [], newUntil: null }, noPopular),
+      computeBadges(
+        { id: 1, badges: [], newUntil: null, popularOverride: null },
+        noPopular,
+      ),
     ).toEqual([]);
   });
 
@@ -21,10 +24,16 @@ describe('menu badges', () => {
     const tomorrow = new Date(now.getTime() + 1000);
     const past = new Date(now.getTime() - 1000);
     expect(
-      computeBadges({ id: 1, badges: [], newUntil: tomorrow }, noPopular),
+      computeBadges(
+        { id: 1, badges: [], newUntil: tomorrow, popularOverride: null },
+        noPopular,
+      ),
     ).toEqual(['new']);
     expect(
-      computeBadges({ id: 1, badges: [], newUntil: past }, noPopular),
+      computeBadges(
+        { id: 1, badges: [], newUntil: past, popularOverride: null },
+        noPopular,
+      ),
     ).toEqual([]);
   });
 
@@ -34,10 +43,25 @@ describe('menu badges', () => {
         id: 7,
         badges: ['decaf', 'seasonal'],
         newUntil: defaultNewUntil(now),
+        popularOverride: null,
       },
       { now, popularIds: new Set([7]) },
     );
     expect(badges).toEqual(['popular', 'new', 'seasonal', 'decaf']);
+  });
+
+  it('«Популярно» вручную важнее подсчёта по заказам', () => {
+    const base = { id: 3, badges: [], newUntil: null };
+    const counted = { now, popularIds: new Set([3]) };
+    expect(computeBadges({ ...base, popularOverride: false }, counted)).toEqual(
+      [],
+    );
+    expect(
+      computeBadges({ ...base, popularOverride: true }, noPopular),
+    ).toEqual(['popular']);
+    expect(computeBadges({ ...base, popularOverride: null }, counted)).toEqual([
+      'popular',
+    ]);
   });
 
   it('срок новинки по умолчанию — NEW_BADGE_DAYS дней', () => {

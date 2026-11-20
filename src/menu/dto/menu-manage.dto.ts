@@ -80,6 +80,16 @@ export class CreateMenuItemDto {
   @IsOptional()
   @IsISO8601({}, { message: 'Неверная дата для метки «Новинка»' })
   newUntil?: string | null;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    nullable: true,
+    description:
+      '«Популярно» вручную: true — всегда, false — никогда, null — авто по заказам',
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'Метка «Популярно» — да, нет или авто' })
+  popularOverride?: boolean | null;
 }
 
 export class UpdateMenuItemDto extends PartialType(CreateMenuItemDto) {}
@@ -134,6 +144,19 @@ export class ManagedMenuItemDto extends MenuItemDto {
     description: 'До какого момента позиция — «Новинка»; null — не новинка',
   })
   newUntil!: string | null;
+
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description: '«Популярно» вручную: true / false; null — авто по заказам',
+  })
+  popularOverride!: boolean | null;
+
+  @ApiProperty({
+    description:
+      'Была бы позиция «Популярной» по заказам — подсказка для режима «Авто»',
+  })
+  autoPopular!: boolean;
 }
 
 export class ManagedMenuCategoryDto {

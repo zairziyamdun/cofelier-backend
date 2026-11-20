@@ -28,12 +28,28 @@ export type BadgeContext = {
 // Порядок меток фиксирован: на карточке первой стоит самая значимая.
 const MANUAL_ORDER = Object.values(MenuBadge);
 
+// «Популярно» по заказам — то, что поставил бы сервер без решения менеджера.
+export function isAutoPopular(
+  item: Pick<MenuItem, 'id'>,
+  context: BadgeContext,
+): boolean {
+  return context.popularIds.has(item.id);
+}
+
+// Решение менеджера (true/false) важнее подсчёта; null — считаем по заказам.
+export function isPopular(
+  item: Pick<MenuItem, 'id' | 'popularOverride'>,
+  context: BadgeContext,
+): boolean {
+  return item.popularOverride ?? isAutoPopular(item, context);
+}
+
 export function computeBadges(
-  item: Pick<MenuItem, 'id' | 'badges' | 'newUntil'>,
+  item: Pick<MenuItem, 'id' | 'badges' | 'newUntil' | 'popularOverride'>,
   context: BadgeContext,
 ): MenuItemBadge[] {
   const result: MenuItemBadge[] = [];
-  if (context.popularIds.has(item.id)) result.push(MenuItemBadge.popular);
+  if (isPopular(item, context)) result.push(MenuItemBadge.popular);
   if (item.newUntil && item.newUntil > context.now) {
     result.push(MenuItemBadge.new);
   }

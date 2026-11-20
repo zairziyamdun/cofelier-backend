@@ -66,6 +66,7 @@ export class MenuAdminService {
         portion: dto.portion ?? null,
         price: dto.price,
         badges: dto.manualBadges ?? [],
+        popularOverride: dto.popularOverride ?? null,
         // Новая позиция — «Новинка» на две недели, если менеджер не решил иначе.
         newUntil:
           dto.newUntil === undefined
@@ -95,6 +96,7 @@ export class MenuAdminService {
         portion: dto.portion,
         price: dto.price,
         badges: dto.manualBadges,
+        popularOverride: dto.popularOverride,
         newUntil:
           dto.newUntil === undefined ? undefined : toDateOrNull(dto.newUntil),
       },

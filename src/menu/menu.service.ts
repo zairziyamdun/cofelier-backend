@@ -31,14 +31,21 @@ export class MenuService {
     return categories.map((category) => toMenuCategoryDto(category, context));
   }
 
-  // Витрина главной: чаще всего попадавшие в заказы позиции. Стоп-лист не
+  // Витрина главной: сначала «Популярно» от менеджера, затем чаще всего
+  // попадавшие в заказы; снятые менеджером вручную не показываем. Стоп-лист не
   // показываем — нельзя звать заказать то, чего нет; при равенстве (и пока
   // заказов нет) решает порядок меню.
   async getPopular(limit: number): Promise<MenuItemDto[]> {
     const [items, context] = await Promise.all([
       this.prisma.menuItem.findMany({
-        where: { isArchived: false, inStopList: false },
+        where: {
+          isArchived: false,
+          inStopList: false,
+          // Явный OR: NOT по nullable-колонке в SQL выкинул бы и «авто» (NULL).
+          OR: [{ popularOverride: null }, { popularOverride: true }],
+        },
         orderBy: [
+          { popularOverride: { sort: 'desc', nulls: 'last' } },
           { orderItems: { _count: 'desc' } },
           { category: { sortOrder: 'asc' } },
           { sortOrder: 'asc' },

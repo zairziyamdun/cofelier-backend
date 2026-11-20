@@ -4,7 +4,7 @@ import {
   ManagedMenuItemDto,
 } from './dto/menu-manage.dto';
 import { MenuCategoryDto, MenuItemDto } from './dto/menu-response.dto';
-import { BadgeContext, computeBadges } from './menu-badges';
+import { BadgeContext, computeBadges, isAutoPopular } from './menu-badges';
 
 export function toMenuItemDto(
   item: MenuItem,
@@ -44,6 +44,8 @@ export function toManagedMenuItemDto(
     inStopList: item.inStopList,
     manualBadges: item.badges,
     newUntil: item.newUntil?.toISOString() ?? null,
+    popularOverride: item.popularOverride,
+    autoPopular: isAutoPopular(item, context),
   };
 }
 

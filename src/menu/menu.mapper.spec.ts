@@ -18,6 +18,7 @@ function makeItem(overrides: Partial<MenuItem> = {}): MenuItem {
     isArchived: false,
     badges: [],
     newUntil: null,
+    popularOverride: null,
     sortOrder: 0,
     createdAt: new Date(0),
     updatedAt: new Date(0),
@@ -76,5 +77,7 @@ describe('menu mapper', () => {
     expect(dto.badges).toEqual(['popular', 'new', 'decaf']);
     expect(dto.manualBadges).toEqual(['decaf']);
     expect(dto.newUntil).toBe(until.toISOString());
+    expect(dto.popularOverride).toBeNull();
+    expect(dto.autoPopular).toBe(true);
   });
 });
