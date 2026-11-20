@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 
 import { AppModule } from './app.module';
@@ -7,10 +8,13 @@ import type { Env } from './config/env';
 import { SocketIoAdapter } from './socket-io.adapter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService<Env, true>);
   const frontendUrl = config.get('FRONTEND_URL', { infer: true });
 
+  // Лимит попыток входа считается по IP: за прокси (сайт, Railway) без этого
+  // все клиенты делят один счётчик с IP прокси.
+  app.set('trust proxy', config.get('TRUST_PROXY', { infer: true }));
   configureApp(app);
   setupSwagger(app);
   // credentials — чтобы браузер отправлял httpOnly-cookie с JWT (этап 3).

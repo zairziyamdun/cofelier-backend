@@ -32,6 +32,7 @@ deploy`) и запускает `node dist/main`.
    | `JWT_SECRET` | новая случайная строка от 32 символов (`node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`) |
    | `FRONTEND_URL` | адрес сайта на Vercel, например `https://cofelier.vercel.app` (без `/` в конце) |
    | `COOKIE_DOMAIN` | не задавать |
+   | `TRUST_PROXY` | `2` — сайт Vercel и прокси Railway; иначе лимит входа общий на всех клиентов. Проверить: 11 неверных входов с одного устройства дают `429`, с другого в ту же минуту — нет |
 
    `PORT` Railway передаёт сам.
 4. Сервис бэкенда → **Settings → Networking → Generate Domain**.

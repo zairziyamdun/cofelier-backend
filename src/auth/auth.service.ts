@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { AuthUser } from '../common/auth-user';
 import type { User } from '../generated/prisma/client';
 import { UserDto } from '../users/dto/user-response.dto';
-import { verifyPassword } from '../users/password';
+import { verifyPasswordOrDummy } from '../users/password';
 import { toUserDto } from '../users/users.mapper';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
@@ -49,11 +49,14 @@ export class AuthService {
     });
   }
 
-  // Одно сообщение на «нет такой почты» и «неверный пароль»: не выдаём, кто зарегистрирован.
+  // Одно сообщение и одинаковое время на «нет такой почты» и «неверный пароль»:
+  // не выдаём, кто зарегистрирован.
   async login(dto: LoginDto): Promise<Session> {
     const user = await this.usersService.findByEmail(dto.email);
-    const passwordOk =
-      user !== null && (await verifyPassword(user.passwordHash, dto.password));
+    const passwordOk = await verifyPasswordOrDummy(
+      user?.passwordHash ?? null,
+      dto.password,
+    );
     if (!user || !passwordOk || !user.isActive) {
       throw new UnauthorizedException('Неверная почта или пароль');
     }

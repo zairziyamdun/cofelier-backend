@@ -72,7 +72,7 @@ describe('Users: доступ по ролям (e2e)', () => {
         .send({
           name: ' Дана ',
           email,
-          password: 'temporary-pass',
+          password: 'temporary-pass-1',
           role: 'barista',
         })
         .expect(201);
@@ -86,7 +86,7 @@ describe('Users: доступ по ролям (e2e)', () => {
 
       await api()
         .post('/api/auth/login')
-        .send({ email, password: 'temporary-pass' })
+        .send({ email, password: 'temporary-pass-1' })
         .expect(200);
 
       // Та же почта второй раз — конфликт.
@@ -96,7 +96,7 @@ describe('Users: доступ по ролям (e2e)', () => {
         .send({
           name: 'Дана',
           email,
-          password: 'temporary-pass',
+          password: 'temporary-pass-1',
           role: 'barista',
         })
         .expect(409);
@@ -112,7 +112,7 @@ describe('Users: доступ по ролям (e2e)', () => {
       await post({
         name: 'Клиент',
         email: users.email('c'),
-        password: 'temporary-pass',
+        password: 'temporary-pass-1',
         role: 'client',
       }).expect(400);
       await post({
@@ -181,7 +181,7 @@ describe('Users: доступ по ролям (e2e)', () => {
         .send({
           name: 'Хитрый',
           email: users.email('m'),
-          password: 'temporary-pass',
+          password: 'temporary-pass-1',
           role: 'admin',
         })
         .expect(403);

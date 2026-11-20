@@ -11,6 +11,20 @@ export function verifyPassword(
   return argon2.verify(hash, password);
 }
 
+let dummyHash: Promise<string> | undefined;
+
+// Нет такой почты — всё равно считаем argon2 на подставном хеше: иначе по
+// времени ответа входа видно, зарегистрирована ли почта.
+export async function verifyPasswordOrDummy(
+  hash: string | null,
+  password: string,
+): Promise<boolean> {
+  if (hash !== null) return verifyPassword(hash, password);
+  dummyHash ??= hashPassword('cofelier-timing-dummy-password');
+  await argon2.verify(await dummyHash, password);
+  return false;
+}
+
 // Почта сравнивается без учёта регистра и пробелов по краям.
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();

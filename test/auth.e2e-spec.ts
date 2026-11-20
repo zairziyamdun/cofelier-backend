@@ -68,6 +68,40 @@ describe('Auth (e2e)', () => {
       .expect(400);
   });
 
+  it.each([
+    ['без цифры', 'coffeetime', 'В пароле нужна хотя бы одна цифра'],
+    ['без буквы', '1234567890', 'В пароле нужна хотя бы одна буква'],
+  ])(
+    'слабый пароль при регистрации (%s) — 400 с понятной ошибкой',
+    async (_name, password, message) => {
+      const response = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({ name: 'Анна', email: users.email('weak'), password })
+        .expect(400);
+      expect((response.body as { message: string[] }).message).toContain(
+        message,
+      );
+    },
+  );
+
+  it('неизвестная почта — тот же 401 и текст, что неверный пароль', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: users.email('nobody'), password: 'password123' })
+      .expect(401);
+    expect((response.body as { message: string }).message).toBe(
+      'Неверная почта или пароль',
+    );
+  });
+
+  it('ответы API несут заголовки безопасности', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .expect(401);
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['x-powered-by']).toBeUndefined();
+  });
+
   it('роль из тела регистрации игнорируется', async () => {
     await request(app.getHttpServer())
       .post('/api/auth/register')

@@ -21,6 +21,9 @@ const envSchema = z
     JWT_TTL_SECONDS: z.coerce.number().int().positive().default(604_800),
     // Домен cookie в проде, когда API и сайт на разных поддоменах (.cofelier.kz).
     COOKIE_DOMAIN: z.preprocess(emptyAsUndefined, z.string().optional()),
+    // Сколько прокси перед API доверять в X-Forwarded-For (IP для лимита входа).
+    // 0 — не доверять: подделанный заголовок не обходит лимит.
+    TRUST_PROXY: z.coerce.number().int().min(0).default(0),
     // Первый админ: создаётся при старте API (AdminBootstrapService), если его нет.
     ADMIN_EMAIL: z.preprocess(
       (value) =>

@@ -32,6 +32,22 @@ describe('Лимит попыток входа (e2e)', () => {
     for (let index = 0; index < 10; index += 1) {
       await attempt().expect(401);
     }
+    const blocked = await attempt().expect(429);
+    expect((blocked.body as { message: string }).message).toMatch(
+      /Слишком много попыток/,
+    );
+    expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('регистрация тоже ограничена', async () => {
+    const attempt = () =>
+      request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({ name: 'Анна', email: 'bad-email', password: 'coffee42' });
+
+    for (let index = 0; index < 10; index += 1) {
+      await attempt().expect(400);
+    }
     await attempt().expect(429);
   });
 });
