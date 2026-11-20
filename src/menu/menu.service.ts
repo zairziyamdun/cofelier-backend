@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { MenuCategoryDto } from './dto/menu-response.dto';
-import { toMenuCategoryDto } from './menu.mapper';
+import { MenuCategoryDto, MenuItemDto } from './dto/menu-response.dto';
+import { toMenuCategoryDto, toMenuItemDto } from './menu.mapper';
 
 @Injectable()
 export class MenuService {
@@ -21,6 +21,23 @@ export class MenuService {
       },
     });
     return categories.map(toMenuCategoryDto);
+  }
+
+  // Витрина главной: чаще всего попадавшие в заказы позиции. Стоп-лист не
+  // показываем — нельзя звать заказать то, чего нет; при равенстве (и пока
+  // заказов нет) решает порядок меню.
+  async getPopular(limit: number): Promise<MenuItemDto[]> {
+    const items = await this.prisma.menuItem.findMany({
+      where: { isArchived: false, inStopList: false },
+      orderBy: [
+        { orderItems: { _count: 'desc' } },
+        { category: { sortOrder: 'asc' } },
+        { sortOrder: 'asc' },
+        { id: 'asc' },
+      ],
+      take: limit,
+    });
+    return items.map(toMenuItemDto);
   }
 
   // Для заказов: актуальные цена и стоп-лист позиций. Архивные не возвращаются.
