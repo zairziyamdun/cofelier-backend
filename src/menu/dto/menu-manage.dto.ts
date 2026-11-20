@@ -4,7 +4,9 @@ import {
   ArrayUnique,
   IsArray,
   IsBoolean,
+  IsEnum,
   IsInt,
+  IsISO8601,
   IsOptional,
   IsString,
   Max,
@@ -14,6 +16,7 @@ import {
 } from 'class-validator';
 
 import { Trim, TrimToNull } from '../../common/transforms';
+import { MenuBadge } from '../../generated/prisma/enums';
 import { MenuItemDto } from './menu-response.dto';
 
 // ── Запросы ────────────────────────────────────────────────────────────
@@ -54,6 +57,29 @@ export class CreateMenuItemDto {
   @Min(1, { message: 'Цена должна быть больше нуля' })
   @Max(1_000_000, { message: 'Цена — не больше 1 000 000 ₸' })
   price!: number;
+
+  @ApiPropertyOptional({
+    enum: MenuBadge,
+    enumName: 'MenuBadge',
+    isArray: true,
+    description: 'Ручные метки; не передано при создании — без меток',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique({ message: 'Метка повторяется' })
+  @IsEnum(MenuBadge, { each: true, message: 'Неизвестная метка' })
+  manualBadges?: MenuBadge[];
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'До какого момента позиция — «Новинка»; null — не новинка. Не передано при создании — 14 дней',
+  })
+  @IsOptional()
+  @IsISO8601({}, { message: 'Неверная дата для метки «Новинка»' })
+  newUntil?: string | null;
 }
 
 export class UpdateMenuItemDto extends PartialType(CreateMenuItemDto) {}
@@ -97,6 +123,17 @@ export class ManagedMenuItemDto extends MenuItemDto {
 
   @ApiProperty({ description: 'true — позиция в стоп-листе' })
   inStopList!: boolean;
+
+  @ApiProperty({ enum: MenuBadge, enumName: 'MenuBadge', isArray: true })
+  manualBadges!: MenuBadge[];
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'До какого момента позиция — «Новинка»; null — не новинка',
+  })
+  newUntil!: string | null;
 }
 
 export class ManagedMenuCategoryDto {

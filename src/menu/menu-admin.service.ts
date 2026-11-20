@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import type { MenuItem } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateMenuCategoryDto,
@@ -14,15 +15,24 @@ import {
   UpdateMenuCategoryDto,
   UpdateMenuItemDto,
 } from './dto/menu-manage.dto';
+import { defaultNewUntil } from './menu-badges';
 import { toManagedMenuCategoryDto, toManagedMenuItemDto } from './menu.mapper';
+import { MenuService } from './menu.service';
 import { slugify } from './slug';
+
+function toDateOrNull(value: string | null): Date | null {
+  return value === null ? null : new Date(value);
+}
 
 const orderBySort = [{ sortOrder: 'asc' as const }, { id: 'asc' as const }];
 
 // Правка меню для менеджера и админа. Публичное чтение — MenuService.
 @Injectable()
 export class MenuAdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly menuService: MenuService,
+  ) {}
 
   // В отличие от публичного меню — и пустые категории, и позиции в стоп-листе.
   async getManagedMenu(): Promise<ManagedMenuCategoryDto[]> {
@@ -32,7 +42,10 @@ export class MenuAdminService {
         items: { where: { isArchived: false }, orderBy: orderBySort },
       },
     });
-    return categories.map(toManagedMenuCategoryDto);
+    const context = await this.menuService.getBadgeContext();
+    return categories.map((category) =>
+      toManagedMenuCategoryDto(category, context),
+    );
   }
 
   // ── Позиции ────────────────────────────────────────────────────────
@@ -44,6 +57,7 @@ export class MenuAdminService {
       orderBy: { sortOrder: 'desc' },
       select: { sortOrder: true },
     });
+    const now = new Date();
     const item = await this.prisma.menuItem.create({
       data: {
         categoryId: dto.categoryId,
@@ -51,11 +65,17 @@ export class MenuAdminService {
         description: dto.description ?? null,
         portion: dto.portion ?? null,
         price: dto.price,
+        badges: dto.manualBadges ?? [],
+        // Новая позиция — «Новинка» на две недели, если менеджер не решил иначе.
+        newUntil:
+          dto.newUntil === undefined
+            ? defaultNewUntil(now)
+            : toDateOrNull(dto.newUntil),
         // Новая позиция — в конец своей категории.
         sortOrder: (last?.sortOrder ?? -1) + 1,
       },
     });
-    return toManagedMenuItemDto(item);
+    return this.toManagedItem(item);
   }
 
   async updateItem(
@@ -74,9 +94,12 @@ export class MenuAdminService {
         description: dto.description,
         portion: dto.portion,
         price: dto.price,
+        badges: dto.manualBadges,
+        newUntil:
+          dto.newUntil === undefined ? undefined : toDateOrNull(dto.newUntil),
       },
     });
-    return toManagedMenuItemDto(item);
+    return this.toManagedItem(item);
   }
 
   async setStopList(
@@ -88,7 +111,7 @@ export class MenuAdminService {
       where: { id },
       data: { inStopList },
     });
-    return toManagedMenuItemDto(item);
+    return this.toManagedItem(item);
   }
 
   // Позиция из прошлых заказов не удаляется, а уходит в архив: история заказов цела.
@@ -124,7 +147,10 @@ export class MenuAdminService {
       },
       include: { items: true },
     });
-    return toManagedMenuCategoryDto(category);
+    return toManagedMenuCategoryDto(
+      category,
+      await this.menuService.getBadgeContext(),
+    );
   }
 
   // Slug не меняется при переименовании: старые ссылки на #якорь не ломаются.
@@ -138,7 +164,10 @@ export class MenuAdminService {
       data: { name: dto.name },
       include: { items: { orderBy: orderBySort } },
     });
-    return toManagedMenuCategoryDto(category);
+    return toManagedMenuCategoryDto(
+      category,
+      await this.menuService.getBadgeContext(),
+    );
   }
 
   async deleteCategory(id: number): Promise<void> {
@@ -187,6 +216,10 @@ export class MenuAdminService {
   }
 
   // ── Вспомогательное ────────────────────────────────────────────────
+
+  private async toManagedItem(item: MenuItem): Promise<ManagedMenuItemDto> {
+    return toManagedMenuItemDto(item, await this.menuService.getBadgeContext());
+  }
 
   // Архивная позиция для панели не существует.
   private async findItemOrThrow(id: number) {

@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { MenuItemBadge } from '../menu-badges';
+
 export class MenuItemDto {
   @ApiProperty({ example: 3 })
   id!: number;
@@ -27,6 +29,16 @@ export class MenuItemDto {
     description: 'false — позиция в стоп-листе: видна, но заказать нельзя',
   })
   isAvailable!: boolean;
+
+  @ApiProperty({
+    enum: MenuItemBadge,
+    enumName: 'MenuItemBadge',
+    isArray: true,
+    description:
+      'Метки для карточки по порядку важности: popular и new считает сервер, остальные ставит менеджер',
+    example: ['popular', 'seasonal'],
+  })
+  badges!: MenuItemBadge[];
 }
 
 export class MenuCategoryDto {
