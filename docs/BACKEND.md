@@ -164,9 +164,12 @@ Dockerfile            многоступенчатая сборка; при ст
 - В ответе меню у каждой позиции — `badges`, готовый список по порядку
   важности: `popular`, `new`, затем ручные `seasonal`, `signature`, `decaf`.
   Правила — чистые функции в `menu/menu-badges.ts`.
-- `popular` считает сервер: топ-5 позиций по сумме порций (`quantity`) за
-  последние 30 дней без отменённых заказов, не меньше 3 порций. Вручную не
-  ставится. Витрина `/menu/popular` считает иначе — за всё время.
+- `popular` — режим `popularOverride`: `null` (авто) — топ-5 позиций по
+  сумме порций (`quantity`) за последние 30 дней без отменённых заказов, не
+  меньше 3 порций; `true` — всегда; `false` — никогда. В панели позиция
+  отдаёт ещё `autoPopular` — что дал бы режим «авто».
+- Витрина `/menu/popular` считает по заказам за всё время, но учитывает
+  решение менеджера: `true` — первыми, `false` — не показываются.
 - `new` — пока `newUntil` в будущем. Новая позиция получает срок +14 дней,
   если менеджер не передал `newUntil`; `null` — снять метку.
 - Ручные метки — `manualBadges` в `POST/PATCH /menu/items`, enum `MenuBadge`.
@@ -206,7 +209,7 @@ Dockerfile            многоступенчатая сборка; при ст
 
 - Модели (есть): `MenuCategory` (slug, name, sortOrder), `MenuItem`
   (name, description, portion, price, imageUrl, inStopList, badges, newUntil,
-  sortOrder).
+  popularOverride, sortOrder).
   Наружу `inStopList` уходит как `isAvailable` — видна, но не заказать.
 - Модели (есть): `User` (email, passwordHash, role, name, isActive),
   `Order` (userId, status, total, comment, pickupAt) и `OrderItem`
