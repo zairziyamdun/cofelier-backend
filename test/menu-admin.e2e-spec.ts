@@ -206,7 +206,7 @@ describe('Управление меню (e2e)', () => {
     expect(publicOld?.badges).toEqual(['seasonal', 'decaf']);
     expect(publicOld).not.toHaveProperty('manualBadges');
 
-    // «Популярно» вручную: да → на витрине первым; нет → не на витрине; авто — по заказам.
+    // «Популярно» вручную: да → на витрине среди первых; нет → не на витрине; авто — по заказам.
     const forced = await api()
       .patch(`/api/menu/items/${old.id}`)
       .set('Cookie', managerCookie)
@@ -222,7 +222,13 @@ describe('Управление меню (e2e)', () => {
         (await api().get('/api/menu/popular?limit=12').expect(200))
           .body as MenuItemDto[]
       ).map((menuItem) => menuItem.id);
-    expect((await showcase())[0]).toBe(old.id);
+    // В базе могут быть и другие позиции с «Да»: тестовая — в их группе, до «авто».
+    const forcedCount = await app.get(PrismaService).menuItem.count({
+      where: { popularOverride: true, isArchived: false, inStopList: false },
+    });
+    const position = (await showcase()).indexOf(old.id);
+    expect(position).toBeGreaterThanOrEqual(0);
+    expect(position).toBeLessThan(forcedCount);
 
     await api()
       .patch(`/api/menu/items/${old.id}`)
