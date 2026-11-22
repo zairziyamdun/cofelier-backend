@@ -139,7 +139,7 @@ pnpm test:e2e      # jest e2e в базе cofelier_test (миграции и с�
 pnpm test:e2e:reset  # пересоздать базу e2e с нуля
 pnpm format        # prettier
 
-docker compose up -d db          # только PostgreSQL для разработки (:5432)
+docker compose up -d db storage  # PostgreSQL (:5432) и хранилище фото RustFS (:9000, консоль :9001)
 docker compose up -d --build     # API + PostgreSQL в контейнерах
 pnpm db:migrate --name <name>    # новая миграция (prisma migrate dev)
 pnpm db:deploy                   # применить миграции (как в CI и Docker)
@@ -148,7 +148,7 @@ pnpm db:studio                   # Prisma Studio
 pnpm openapi:export [путь]       # openapi.json без подключения к БД (для фронта)
 ```
 
-Первый запуск: `cp .env.example .env` → `docker compose up -d db` →
+Первый запуск: `cp .env.example .env` → `docker compose up -d db storage` →
 `pnpm install` (postinstall делает `prisma generate`) → `pnpm db:deploy` →
 `pnpm db:seed` → `pnpm start:dev` → `http://localhost:4000/api/menu`,
 Swagger — `http://localhost:4000/api/docs`.
