@@ -78,10 +78,11 @@ describe('Заказы (e2e)', () => {
     barista = await users.create('barista');
     manager = await users.create('manager');
 
-    const category = await prisma.menuCategory.create({
-      data: { name: 'Заказы e2e', slug: `orders-e2e-${Date.now()}` },
-    });
-    categoryId = category.id;
+    // Категория из сидов: своя новая категория ломала бы тест порядка
+    // категорий в соседнем файле (файлы e2e идут параллельно).
+    categoryId = (
+      await prisma.menuCategory.findFirstOrThrow({ orderBy: { id: 'asc' } })
+    ).id;
     [latte, croissant, soldOut] = await Promise.all([
       prisma.menuItem.create({
         data: {
@@ -115,8 +116,9 @@ describe('Заказы (e2e)', () => {
     sockets.forEach((socket) => socket.disconnect());
     const ids = [client, otherClient, barista, manager].map((user) => user.id);
     await prisma.order.deleteMany({ where: { userId: { in: ids } } });
-    await prisma.menuItem.deleteMany({ where: { categoryId } });
-    await prisma.menuCategory.delete({ where: { id: categoryId } });
+    await prisma.menuItem.deleteMany({
+      where: { id: { in: [latte.id, croissant.id, soldOut.id] } },
+    });
     await users.cleanup();
     await app.close();
   });
@@ -154,7 +156,7 @@ describe('Заказы (e2e)', () => {
     }).expect(400);
   });
 
-  it('стоп-лист, чужая позиция, пустая корзина, повтор позиции', async () => {
+  it('стоп-лист, чужая позиция, пустая корзина', async () => {
     const stop = await order(client, {
       items: [{ menuItemId: soldOut.id, quantity: 1 }],
     }).expect(409);
@@ -165,12 +167,19 @@ describe('Заказы (e2e)', () => {
       items: [{ menuItemId: 999_999, quantity: 1 }],
     }).expect(409);
     await order(client, { items: [] }).expect(400);
-    await order(client, {
+  });
+
+  // С добавками одна позиция может быть несколькими строками (разное молоко).
+  it('одна позиция двумя строками — можно, каждая со своей ценой', async () => {
+    const response = await order(client, {
       items: [
         { menuItemId: latte.id, quantity: 1 },
-        { menuItemId: latte.id, quantity: 1 },
+        { menuItemId: latte.id, quantity: 2 },
       ],
-    }).expect(400);
+    }).expect(201);
+    const created = response.body as OrderDto;
+    expect(created.items.map((item) => item.quantity)).toEqual([1, 2]);
+    expect(created.total).toBe(1600 * 3);
   });
 
   it('время получения: прошлое — 400, через полчаса — можно', async () => {

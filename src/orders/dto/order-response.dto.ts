@@ -2,6 +2,28 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import { OrderStatus } from '../../generated/prisma/enums';
 
+export class OrderItemModifierDto {
+  @ApiProperty({ example: 'Молоко' })
+  groupName!: string;
+
+  @ApiProperty({ example: 'Овсяное' })
+  optionName!: string;
+
+  @ApiProperty({
+    example: 300,
+    description: 'Надбавка за штуку на момент заказа',
+  })
+  priceDelta!: number;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({
+    description: 'Был вариантом по умолчанию — бариста выделяет только отличия',
+  })
+  isDefault!: boolean;
+}
+
 export class OrderItemDto {
   @ApiProperty({ example: 1 })
   id!: number;
@@ -15,11 +37,17 @@ export class OrderItemDto {
   })
   name!: string;
 
-  @ApiProperty({ example: 1500, description: 'Цена за штуку на момент заказа' })
+  @ApiProperty({
+    example: 1800,
+    description: 'Цена за штуку вместе с добавками, на момент заказа',
+  })
   price!: number;
 
   @ApiProperty({ example: 2 })
   quantity!: number;
+
+  @ApiProperty({ type: [OrderItemModifierDto] })
+  modifiers!: OrderItemModifierDto[];
 }
 
 export class OrderDto {

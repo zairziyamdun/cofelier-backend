@@ -42,11 +42,13 @@ describe('Menu (e2e)', () => {
     expect(Object.keys(item).sort()).toEqual(
       [
         'badges',
+        'defaultPrice',
         'description',
         'id',
         'photos',
         'slug',
         'isAvailable',
+        'modifierGroups',
         'name',
         'portion',
         'price',

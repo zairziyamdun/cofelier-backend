@@ -1,20 +1,36 @@
-import type { Order, OrderItem, User } from '../generated/prisma/client';
+import type {
+  Order,
+  OrderItem,
+  OrderItemModifier,
+  User,
+} from '../generated/prisma/client';
 import {
   OrderDto,
   OrderItemDto,
   StaffOrderDto,
 } from './dto/order-response.dto';
 
-export type OrderWithItems = Order & { items: OrderItem[] };
+export type OrderWithItems = Order & {
+  items: (OrderItem & { modifiers: OrderItemModifier[] })[];
+};
 export type OrderWithCustomer = OrderWithItems & { user: Pick<User, 'name'> };
 
-function toOrderItemDto(item: OrderItem): OrderItemDto {
+function toOrderItemDto(
+  item: OrderItem & { modifiers: OrderItemModifier[] },
+): OrderItemDto {
   return {
     id: item.id,
     menuItemId: item.menuItemId,
     name: item.name,
     price: item.price,
     quantity: item.quantity,
+    modifiers: item.modifiers.map((modifier) => ({
+      groupName: modifier.groupName,
+      optionName: modifier.optionName,
+      priceDelta: modifier.priceDelta,
+      quantity: modifier.quantity,
+      isDefault: modifier.isDefault,
+    })),
   };
 }
 

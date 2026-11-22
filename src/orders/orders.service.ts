@@ -19,7 +19,12 @@ const MY_ORDERS_LIMIT = 20;
 const PICKUP_PAST_TOLERANCE_MS = 5 * 60 * 1000;
 const PICKUP_MAX_AHEAD_MS = 24 * 60 * 60 * 1000;
 
-const withItems = { items: { orderBy: { id: 'asc' as const } } };
+const withItems = {
+  items: {
+    orderBy: { id: 'asc' as const },
+    include: { modifiers: { orderBy: { id: 'asc' as const } } },
+  },
+};
 const withItemsAndCustomer = { ...withItems, user: { select: { name: true } } };
 
 @Injectable()
@@ -32,35 +37,27 @@ export class OrdersService {
 
   async create(userId: number, dto: CreateOrderDto): Promise<OrderDto> {
     const pickupAt = this.parsePickupAt(dto.pickupAt);
-    const menuItems = await this.menuService.findItemsForOrder(
-      dto.items.map((line) => line.menuItemId),
-    );
-    const byId = new Map(menuItems.map((item) => [item.id, item]));
-
-    // Цены и доступность — только из меню, а не из запроса.
-    const lines = dto.items.map((line) => {
-      const menuItem = byId.get(line.menuItemId);
-      if (!menuItem) {
-        throw new ConflictException(
-          'Одной из позиций больше нет в меню — обновите корзину',
-        );
-      }
-      if (menuItem.inStopList) {
-        throw new ConflictException(
-          `«${menuItem.name}» сейчас нет в наличии — уберите из корзины`,
-        );
-      }
-      return {
-        menuItemId: menuItem.id,
-        name: menuItem.name,
-        price: menuItem.price,
+    // Цены, доступность и добавки — только из меню, а не из запроса.
+    const lines = await this.menuService.resolveOrderLines(
+      dto.items.map((line) => ({
+        menuItemId: line.menuItemId,
         quantity: line.quantity,
-      };
-    });
+        modifiers: (line.modifiers ?? []).map((modifier) => ({
+          optionId: modifier.optionId,
+          quantity: modifier.quantity ?? 1,
+        })),
+      })),
+    );
     const total = lines.reduce(
       (sum, line) => sum + line.price * line.quantity,
       0,
     );
+    // Гость видел другую сумму — цены изменились, пока корзина лежала.
+    if (dto.expectedTotal !== undefined && dto.expectedTotal !== total) {
+      throw new ConflictException(
+        `Цены в меню изменились: сумма теперь ${formatTenge(total)} вместо ${formatTenge(dto.expectedTotal)}. Проверьте корзину`,
+      );
+    }
 
     // Заказ и его позиции создаются одной операцией (вложенный create атомарен).
     const order = await this.prisma.order.create({
@@ -69,7 +66,12 @@ export class OrdersService {
         total,
         comment: dto.comment ?? null,
         pickupAt,
-        items: { create: lines },
+        items: {
+          create: lines.map(({ modifiers, ...line }) => ({
+            ...line,
+            modifiers: { create: modifiers },
+          })),
+        },
       },
       include: withItemsAndCustomer,
     });
@@ -142,4 +144,8 @@ export class OrdersService {
     }
     return pickupAt;
   }
+}
+
+function formatTenge(value: number): string {
+  return `${value.toLocaleString('ru-RU')} ₸`;
 }
