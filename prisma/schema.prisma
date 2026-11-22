@@ -50,34 +50,54 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id              Int          @id @default(autoincrement())
-  categoryId      Int          @map("category_id")
-  category        MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  id              Int             @id @default(autoincrement())
+  categoryId      Int             @map("category_id")
+  // Для ссылки на товар (/menu?item=raf); при переименовании не меняется.
+  slug            String          @unique
+  category        MenuCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   name            String
   description     String?
   // Объём или вес для подписи: «250 мл», «120 г».
   portion         String?
   // Цена в целых тенге: дробных сумм в меню нет.
   price           Int
-  imageUrl        String?      @map("image_url")
   // Стоп-лист: позиция видна в меню, но заказать её нельзя.
-  inStopList      Boolean      @default(false) @map("in_stop_list")
+  inStopList      Boolean         @default(false) @map("in_stop_list")
   // Удалённая позиция, которая уже есть в заказах: скрыта из меню, но история цела.
-  isArchived      Boolean      @default(false) @map("is_archived")
+  isArchived      Boolean         @default(false) @map("is_archived")
   // Метки, которые ставит менеджер. «Новинка» и «Популярно» считаются сами —
   // menu/menu-badges.ts.
-  badges          MenuBadge[]  @default([])
+  badges          MenuBadge[]     @default([])
   // До какого момента позиция — «Новинка»; null — не новинка.
-  newUntil        DateTime?    @map("new_until")
+  newUntil        DateTime?       @map("new_until")
   // «Популярно» вручную: true — всегда, false — никогда, null — по заказам.
-  popularOverride Boolean?     @map("popular_override")
-  sortOrder       Int          @default(0) @map("sort_order")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  popularOverride Boolean?        @map("popular_override")
+  sortOrder       Int             @default(0) @map("sort_order")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
   orderItems      OrderItem[]
+  photos          MenuItemPhoto[]
 
   @@index([categoryId, sortOrder])
   @@map("menu_items")
+}
+
+// Фото позиции: файлы в S3 (<key>-320/800/1600.webp), первое по sortOrder — обложка.
+model MenuItemPhoto {
+  id         Int      @id @default(autoincrement())
+  menuItemId Int      @map("menu_item_id")
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  // Общий префикс файлов в хранилище: menu/<itemId>/<uuid>.
+  key        String   @unique
+  width      Int
+  height     Int
+  // Прозрачный фон (рендер без фона) — витрина показывает его без рамки.
+  hasAlpha   Boolean  @default(false) @map("has_alpha")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([menuItemId, sortOrder])
+  @@map("menu_item_photos")
 }
 
 // Ручные метки позиции меню.

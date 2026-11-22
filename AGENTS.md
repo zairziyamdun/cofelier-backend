@@ -26,7 +26,8 @@ NestJS 11 + Prisma + PostgreSQL, REST + WebSocket, Swagger, pnpm. Коммент
   фронт генерирует типы из `pnpm openapi:export`. Настройка приложения —
   одна, `src/app.setup.ts`: её зовут `main.ts`, e2e и экспорт.
 - **После правок:** `pnpm lint:check` + `pnpm typecheck` + `pnpm test`; если
-  тронута БД — ещё `pnpm test:e2e` с поднятым docker-compose.
+  тронута БД — ещё `pnpm test:e2e` с поднятым docker-compose (своя база
+  `cofelier_test`, база разработки не трогается).
 - Код — источник истины: если док разошёлся с кодом, док правится в том же
   коммите.
 - Объём задачи не расширять молча; неоднозначность — спросить.
@@ -100,12 +101,15 @@ src/<module>/
   чистые правила в функции и тестировать их.
 - **E2E:** `test/**/*.e2e-spec.ts` через supertest на реальной БД из
   docker-compose; права (403/404) для каждой роли на новых ручках.
+- База e2e — отдельная, `<имя из DATABASE_URL>_test` (или `E2E_DATABASE_URL`);
+  имя не на `_test` — тесты не стартуют. `pnpm test:e2e` сам создаёт её,
+  применяет миграции и сиды; испортилась — `pnpm test:e2e:reset`.
 
 ## CI и PR
 
 - GitHub Actions (`.github/workflows/ci.yml`) на каждый PR в `main`: джоба
-  `check` (lint, typecheck, unit, build) и `e2e` (PostgreSQL как сервис,
-  `db:deploy`, `db:seed`, `test:e2e`). Слияние — после зелёных обеих.
+  `check` (lint, typecheck, unit, build) и `e2e` (PostgreSQL как сервис с базой
+  `cofelier_test`, `test:e2e`). Слияние — после зелёных обеих.
 - Перед PR — скилл `/pre-pr-review`, отчёт `READY` / `READY WITH WARNINGS` /
   `BLOCKED` / `INCOMPLETE`. С `BLOCKED` PR не создаём.
 - Отклонение от правила — `policy-exception: <ID> <причина>` у кода и строка
@@ -131,10 +135,11 @@ pnpm lint:check    # eslint без --fix (как в CI)
 pnpm lint          # eslint --fix
 pnpm typecheck     # tsc --noEmit
 pnpm test          # jest unit
-pnpm test:e2e      # jest e2e (нужна БД)
+pnpm test:e2e      # jest e2e в базе cofelier_test (миграции и сиды — сами)
+pnpm test:e2e:reset  # пересоздать базу e2e с нуля
 pnpm format        # prettier
 
-docker compose up -d db          # только PostgreSQL для разработки (:5432)
+docker compose up -d db storage  # PostgreSQL (:5432) и хранилище фото RustFS (:9000, консоль :9001)
 docker compose up -d --build     # API + PostgreSQL в контейнерах
 pnpm db:migrate --name <name>    # новая миграция (prisma migrate dev)
 pnpm db:deploy                   # применить миграции (как в CI и Docker)
@@ -143,7 +148,7 @@ pnpm db:studio                   # Prisma Studio
 pnpm openapi:export [путь]       # openapi.json без подключения к БД (для фронта)
 ```
 
-Первый запуск: `cp .env.example .env` → `docker compose up -d db` →
+Первый запуск: `cp .env.example .env` → `docker compose up -d db storage` →
 `pnpm install` (postinstall делает `prisma generate`) → `pnpm db:deploy` →
 `pnpm db:seed` → `pnpm start:dev` → `http://localhost:4000/api/menu`,
 Swagger — `http://localhost:4000/api/docs`.

@@ -1,4 +1,5 @@
-# Разработка: `docker compose up -d db` — только PostgreSQL, API — `pnpm start:dev`.
+# Разработка: `docker compose up -d db storage` — база и хранилище фото,
+# API — `pnpm start:dev`.
 # Целиком в контейнерах: `docker compose up -d --build`.
 services:
   db:
@@ -18,6 +19,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # Хранилище фото меню — S3-совместимое (RustFS), как Cloudflare R2 на проде.
+  # Бакет с открытым чтением создаёт API при старте вне прода (storage.service.ts).
+  # Консоль: http://localhost:9001, логин и пароль — S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY.
+  storage:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:-cofelier}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:-cofelier-storage}
+      RUSTFS_CONSOLE_ENABLE: 'true'
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - storage-data:/data
+
   api:
     build: .
     restart: unless-stopped
@@ -34,3 +51,4 @@ services:
 
 volumes:
   db-data:
+  storage-data:

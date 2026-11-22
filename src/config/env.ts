@@ -35,6 +35,21 @@ const envSchema = z
         .optional(),
     ),
     ADMIN_PASSWORD: z.preprocess(emptyAsUndefined, z.string().optional()),
+    // Хранилище фото меню (S3: RustFS локально, Cloudflare R2 на проде).
+    // Не задано — API работает, но загрузка фото отвечает 503.
+    S3_ENDPOINT: z.preprocess(emptyAsUndefined, z.url().optional()),
+    S3_REGION: z.preprocess(emptyAsUndefined, z.string().default('auto')),
+    S3_BUCKET: z.preprocess(emptyAsUndefined, z.string().optional()),
+    S3_ACCESS_KEY_ID: z.preprocess(emptyAsUndefined, z.string().optional()),
+    S3_SECRET_ACCESS_KEY: z.preprocess(emptyAsUndefined, z.string().optional()),
+    // Откуда браузер берёт файлы: публичный домен бакета, без «/» в конце.
+    S3_PUBLIC_URL: z.preprocess(
+      emptyAsUndefined,
+      z
+        .url()
+        .transform((value) => value.replace(/\/+$/, ''))
+        .optional(),
+    ),
     // true — разово: роль «админ», включить аккаунт и пароль из ADMIN_PASSWORD.
     ADMIN_RESET_PASSWORD: z.preprocess(
       (value) =>
@@ -48,6 +63,26 @@ const envSchema = z
         .optional()
         .transform((value) => value === 'true'),
     ),
+  })
+  .superRefine((env, ctx) => {
+    // Хранилище — всё или ничего: наполовину заданное — ошибка при старте.
+    const storage = {
+      S3_ENDPOINT: env.S3_ENDPOINT,
+      S3_BUCKET: env.S3_BUCKET,
+      S3_ACCESS_KEY_ID: env.S3_ACCESS_KEY_ID,
+      S3_SECRET_ACCESS_KEY: env.S3_SECRET_ACCESS_KEY,
+      S3_PUBLIC_URL: env.S3_PUBLIC_URL,
+    };
+    const missing = Object.entries(storage).filter(([, value]) => !value);
+    if (missing.length > 0 && missing.length < Object.keys(storage).length) {
+      for (const [key] of missing) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: 'хранилище фото задаётся целиком: все переменные S3_*',
+        });
+      }
+    }
   })
   .superRefine((env, ctx) => {
     const email = env.ADMIN_EMAIL;

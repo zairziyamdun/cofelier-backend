@@ -27,15 +27,18 @@ src/
   menu/               MenuService — публичное меню (GET /api/menu, /menu/popular) (есть)
                       MenuAdminService — правка позиций, категорий, стоп-лист,
                       порядок категорий; slug.ts — транслит для slug          (есть)
+                      MenuPhotosService — фото позиций; menu-photo-processing.ts
+                      — проверка и размеры (sharp)                            (есть)
+  storage/            StorageService — файлы в S3 (RustFS локально, R2 на проде) (есть)
   orders/             OrdersService, OrdersGateway (/orders), order-status.ts      (есть)
 socket-io.adapter.ts  Socket.IO с CORS сайта и cookie (подключается в main.ts)     (есть)
 prisma/
-  schema.prisma       схема БД: MenuCategory, MenuItem                             (есть)
+  schema.prisma       схема БД: меню (с фото), пользователи, заказы                (есть)
   migrations/         миграции, первая — init_menu                                 (есть)
-  seed.ts             меню с примерными ценами, идемпотентно                       (есть)
+  seed.ts             меню с примерными ценами и фото (seed-photos/), идемпотентно (есть)
 prisma.config.ts      конфиг Prisma CLI: путь схемы, миграций, DATABASE_URL        (есть)
-test/                 e2e (supertest), нужна БД с сидами                           (есть: health, menu)
-docker-compose.yml    db (PostgreSQL 16) + api                                     (есть)
+test/                 e2e (supertest) в отдельной базе <имя>_test                  (есть)
+docker-compose.yml    db (PostgreSQL 16), storage (RustFS, S3) + api              (есть)
 Dockerfile            многоступенчатая сборка; при старте — migrate deploy         (есть)
 ```
 
@@ -130,6 +133,8 @@ Dockerfile            многоступенчатая сборка; при ст
 | `PATCH /menu/items/:id/stop-list` | ✔ | | | | ✔ | ✔ |
 | `POST /menu/categories`, `PATCH/DELETE /menu/categories/:id` | ✔ | | | | ✔ | ✔ |
 | `PUT /menu/categories/order` | ✔ | | | | ✔ | ✔ |
+| `POST /menu/items/:id/photos` (multipart, поле `photos`) | ✔ | | | | ✔ | ✔ |
+| `PUT /menu/items/:id/photos/order`, `DELETE /menu/items/:id/photos/:photoId` | ✔ | | | | ✔ | ✔ |
 | `POST /orders` | ✔ | | ✔ | | | |
 | `GET /orders/my` (только свои) | ✔ | | ✔ | | | |
 | `GET /orders/queue` | ✔ | | | ✔ | ✔ | ✔ |
@@ -174,6 +179,25 @@ Dockerfile            многоступенчатая сборка; при ст
   если менеджер не передал `newUntil`; `null` — снять метку.
 - Ручные метки — `manualBadges` в `POST/PATCH /menu/items`, enum `MenuBadge`.
   В панели (`/menu/manage`) позиция отдаёт и `manualBadges`, и `newUntil`.
+
+### Фото позиций (есть)
+
+- Строки — `MenuItemPhoto` (key, width, height, hasAlpha, sortOrder), файлы — в
+  хранилище: `<key>-320.webp`, `-800`, `-1600`, где key = `menu/<itemId>/<uuid>`.
+  Первое фото по `sortOrder` — обложка. Не больше 6 у позиции.
+- Загрузка (`menu-photo-processing.ts`): тип — по содержимому (JPEG, PNG,
+  WebP, AVIF; HEIC — нет), до 10 МБ, от 200 px по меньшей стороне; поворот по
+  EXIF, метаданные (GPS) не сохраняются; прозрачный фон определяется сам.
+- Сначала проверяются все файлы, потом грузятся: один плохой файл — `400`, и
+  ничего не загружено. Сбой записи в БД — загруженные файлы удаляются.
+- Удаление фото, позиции или уход позиции в архив удаляет и файлы (ошибка
+  удаления файла — только предупреждение в логе).
+- Ошибки multer («File too large») переводятся на русский —
+  `photo-upload-error.filter.ts`.
+- Хранилище не задано (`S3_*` пусто) — меню работает, загрузка отвечает `503`.
+  Вне прода API при старте создаёт бакет с открытым чтением.
+- В ответе меню у позиции `photos` (размеры и адреса трёх файлов) и `slug` —
+  для ссылки на товар; slug — транслит названия, при переименовании не меняется.
 
 ### Управление меню (есть)
 
@@ -282,6 +306,9 @@ env роняет приложение сразу с перечнем ошибо�
 | `TRUST_PROXY` | сколько прокси перед API доверять в `X-Forwarded-For` (IP для лимита входа), по умолчанию 0 | ✔ |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | первый админ при старте API (только вместе, пароль от 12 символов) | ✔ |
 | `ADMIN_RESET_PASSWORD` | `true` — разово сбросить роль, доступ и пароль этого аккаунта | ✔ |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` | хранилище фото меню; все вместе или ни одной (без них загрузка фото — `503`) | ✔ |
+| `S3_REGION` | регион S3: `us-east-1` локально (RustFS), `auto` на R2; по умолчанию `auto` | ✔ |
+| `E2E_DATABASE_URL` | только для `pnpm test:e2e`: своя база с именем на `_test` (приложение не читает) | ✔ |
 
 ---
 

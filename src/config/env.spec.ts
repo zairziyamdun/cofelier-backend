@@ -6,6 +6,23 @@ describe('validateEnv', () => {
     JWT_SECRET: 'x'.repeat(32),
   };
 
+  it('хранилище фото: всё или ничего', () => {
+    expect(validateEnv(base).S3_BUCKET).toBeUndefined();
+    const storage = {
+      S3_ENDPOINT: 'http://localhost:9000',
+      S3_BUCKET: 'cofelier',
+      S3_ACCESS_KEY_ID: 'key',
+      S3_SECRET_ACCESS_KEY: 'secret',
+      S3_PUBLIC_URL: 'http://localhost:9000/cofelier/',
+    };
+    const env = validateEnv({ ...base, ...storage });
+    expect(env.S3_PUBLIC_URL).toBe('http://localhost:9000/cofelier');
+    expect(env.S3_REGION).toBe('auto');
+    expect(() =>
+      validateEnv({ ...base, S3_BUCKET: 'cofelier', S3_ENDPOINT: '' }),
+    ).toThrow(/S3_ENDPOINT/);
+  });
+
   it('подставляет значения по умолчанию', () => {
     const env = validateEnv(base);
     expect(env.PORT).toBe(4000);
