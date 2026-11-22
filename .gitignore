@@ -24,3 +24,6 @@ pnpm-debug.log*
 
 # Генерируется pnpm openapi:export, копия для фронта — в cofelier-frontend/openapi
 /openapi.json
+
+# Фото меню на диске (режим без S3, UPLOADS_DIR)
+/uploads

@@ -3,7 +3,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
@@ -39,11 +38,6 @@ export class MenuPhotosService {
     itemId: number,
     files: UploadedPhoto[],
   ): Promise<ManagedMenuItemDto> {
-    if (!this.storage.isConfigured) {
-      throw new ServiceUnavailableException(
-        'Хранилище фото не настроено — обратитесь к администратору',
-      );
-    }
     if (files.length === 0) {
       throw new BadRequestException('Выберите хотя бы одно фото');
     }
