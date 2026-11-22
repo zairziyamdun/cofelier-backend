@@ -34,7 +34,7 @@ prisma/
   migrations/         миграции, первая — init_menu                                 (есть)
   seed.ts             меню с примерными ценами, идемпотентно                       (есть)
 prisma.config.ts      конфиг Prisma CLI: путь схемы, миграций, DATABASE_URL        (есть)
-test/                 e2e (supertest), нужна БД с сидами                           (есть: health, menu)
+test/                 e2e (supertest) в отдельной базе <имя>_test                  (есть)
 docker-compose.yml    db (PostgreSQL 16) + api                                     (есть)
 Dockerfile            многоступенчатая сборка; при старте — migrate deploy         (есть)
 ```
