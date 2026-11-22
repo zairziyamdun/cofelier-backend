@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 import { MenuItemBadge } from '../menu-badges';
+import { ModifierGroupDto } from './menu-modifiers.dto';
 
 export class MenuPhotoUrlsDto {
   @ApiProperty({ description: 'Ширина 320 px — строка меню' })
@@ -68,6 +69,21 @@ export class MenuItemDto {
     description: 'false — позиция в стоп-листе: видна, но заказать нельзя',
   })
   isAvailable!: boolean;
+
+  @ApiProperty({
+    type: [ModifierGroupDto],
+    description: 'Группы добавок в порядке показа; пусто — без добавок',
+  })
+  modifierGroups!: ModifierGroupDto[];
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'Цена с добавками по умолчанию — её кладёт «+» в меню; null — по умолчанию не собрать, нужно выбрать в шторке',
+    example: 1800,
+  })
+  defaultPrice!: number | null;
 
   @ApiProperty({
     enum: MenuItemBadge,

@@ -17,7 +17,7 @@ import {
   ProcessedPhoto,
   processPhoto,
 } from './menu-photo-processing';
-import { toManagedMenuItemDto, withPhotos } from './menu.mapper';
+import { toManagedMenuItemDto, withItemDetails } from './menu.mapper';
 import { MenuService } from './menu.service';
 
 export type UploadedPhoto = { buffer: Buffer };
@@ -162,7 +162,7 @@ export class MenuPhotosService {
     const [item, context] = await Promise.all([
       this.prisma.menuItem.findUniqueOrThrow({
         where: { id: itemId },
-        include: withPhotos,
+        include: withItemDetails,
       }),
       this.menuService.getDtoContext(),
     ]);
