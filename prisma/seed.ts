@@ -2,11 +2,19 @@
 // Первого админа создаёт API при старте из ADMIN_EMAIL/ADMIN_PASSWORD
 // (src/users/admin-bootstrap.service.ts), не сиды.
 // Повторный запуск обновляет записи по slug категории и названию позиции, не дублируя их.
+// Фото демо-позиций — рендеры из prisma/seed-photos; грузятся, только если задано
+// хранилище (S3_*) и у позиции ещё нет фото.
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { PrismaClient } from '../src/generated/prisma/client';
 import type { MenuBadge } from '../src/generated/prisma/enums';
+import { photoFileKey, processPhoto } from '../src/menu/menu-photo-processing';
+import { slugify } from '../src/menu/slug';
+import { S3Storage, s3ConfigFromEnv } from '../src/storage/s3-storage';
 
 type SeedItem = {
   name: string;
@@ -20,6 +28,55 @@ type SeedItem = {
 };
 
 const NEW_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+
+// Название позиции → рендер в prisma/seed-photos.
+const SEED_PHOTOS: Record<string, string> = {
+  Эспрессо: 'drink-espresso.webp',
+  Американо: 'drink-americano.webp',
+  Капучино: 'drink-cappuccino.webp',
+  'Флэт уайт': 'drink-flatwhite.webp',
+  Латте: 'drink-latte.webp',
+  Раф: 'drink-raf.webp',
+  'Воронка V60': 'drink-v60.webp',
+  Аэропресс: 'drink-aeropress.webp',
+  'Колд брю': 'drink-coldbrew.webp',
+  'Медный латте': 'drink-copper.webp',
+  'Апельсиновый тоник': 'drink-tonic.webp',
+  'Матча латте': 'drink-matcha.webp',
+  Какао: 'drink-cocoa.webp',
+};
+
+async function seedPhoto(
+  prisma: PrismaClient,
+  storage: S3Storage,
+  itemId: number,
+  file: string,
+): Promise<void> {
+  const hasPhotos = await prisma.menuItemPhoto.count({
+    where: { menuItemId: itemId },
+  });
+  if (hasPhotos > 0) return;
+  const photo = await processPhoto(
+    await readFile(join(__dirname, 'seed-photos', file)),
+  );
+  const key = `menu/${itemId}/${randomUUID()}`;
+  for (const variant of photo.variants) {
+    await storage.put(
+      photoFileKey(key, variant.width),
+      variant.body,
+      'image/webp',
+    );
+  }
+  await prisma.menuItemPhoto.create({
+    data: {
+      menuItemId: itemId,
+      key,
+      width: photo.width,
+      height: photo.height,
+      hasAlpha: photo.hasAlpha,
+    },
+  });
+}
 
 type SeedCategory = {
   slug: string;
@@ -169,6 +226,10 @@ async function main() {
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
   });
+  const s3Config = s3ConfigFromEnv(process.env);
+  const storage = s3Config ? new S3Storage(s3Config) : null;
+  if (storage) await storage.ensurePublicBucket();
+  else process.stdout.write('Сиды: хранилище не задано (S3_*) — без фото\n');
 
   try {
     for (const [categoryIndex, category] of menu.entries()) {
@@ -184,6 +245,7 @@ async function main() {
 
       for (const [itemIndex, item] of category.items.entries()) {
         const data = {
+          slug: slugify(item.name, 'item'),
           description: item.description ?? null,
           portion: item.portion ?? null,
           price: item.price,
@@ -196,12 +258,17 @@ async function main() {
           where: { categoryId: saved.id, name: item.name },
           select: { id: true },
         });
-        if (existing) {
-          await prisma.menuItem.update({ where: { id: existing.id }, data });
-        } else {
-          await prisma.menuItem.create({
-            data: { ...data, name: item.name, categoryId: saved.id },
-          });
+        const itemId = existing
+          ? (await prisma.menuItem.update({ where: { id: existing.id }, data }))
+              .id
+          : (
+              await prisma.menuItem.create({
+                data: { ...data, name: item.name, categoryId: saved.id },
+              })
+            ).id;
+        const photoFile = SEED_PHOTOS[item.name];
+        if (storage && photoFile) {
+          await seedPhoto(prisma, storage, itemId, photoFile);
         }
       }
     }
