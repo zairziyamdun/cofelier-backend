@@ -153,7 +153,7 @@ export class OrdersService {
       return { available: true, reason: null };
     } catch (error) {
       if (error instanceof HttpException) {
-        return { available: false, reason: error.message };
+        return { available: false, reason: repeatReason(error.message) };
       }
       throw error;
     }
@@ -216,4 +216,10 @@ export class OrdersService {
 
 function formatTenge(value: number): string {
   return `${value.toLocaleString('ru-RU')} ₸`;
+}
+
+// Тексты проверки написаны для оформления («— уберите из корзины»); для
+// «Повторить» корзины ещё нет — хвост с советом убираем.
+function repeatReason(message: string): string {
+  return message.replace(/ — (уберите из корзины|обновите корзину)$/, '');
 }
