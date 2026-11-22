@@ -17,10 +17,10 @@ import {
 import { defaultNewUntil } from './menu-badges';
 import { MenuPhotosService } from './menu-photos.service';
 import {
-  MenuItemWithPhotos,
+  MenuItemDetails,
   toManagedMenuCategoryDto,
   toManagedMenuItemDto,
-  withPhotos,
+  withItemDetails,
 } from './menu.mapper';
 import { MenuService } from './menu.service';
 import { pickFreeSlug, slugify } from './slug';
@@ -48,7 +48,7 @@ export class MenuAdminService {
         items: {
           where: { isArchived: false },
           orderBy: orderBySort,
-          include: withPhotos,
+          include: withItemDetails,
         },
       },
     });
@@ -86,7 +86,7 @@ export class MenuAdminService {
         // Новая позиция — в конец своей категории.
         sortOrder: (last?.sortOrder ?? -1) + 1,
       },
-      include: withPhotos,
+      include: withItemDetails,
     });
     return this.toManagedItem(item);
   }
@@ -112,7 +112,7 @@ export class MenuAdminService {
         newUntil:
           dto.newUntil === undefined ? undefined : toDateOrNull(dto.newUntil),
       },
-      include: withPhotos,
+      include: withItemDetails,
     });
     return this.toManagedItem(item);
   }
@@ -125,7 +125,7 @@ export class MenuAdminService {
     const item = await this.prisma.menuItem.update({
       where: { id },
       data: { inStopList },
-      include: withPhotos,
+      include: withItemDetails,
     });
     return this.toManagedItem(item);
   }
@@ -167,7 +167,7 @@ export class MenuAdminService {
         slug: await this.uniqueSlug(dto.name),
         sortOrder: (last?.sortOrder ?? -1) + 1,
       },
-      include: { items: { include: withPhotos } },
+      include: { items: { include: withItemDetails } },
     });
     return toManagedMenuCategoryDto(
       category,
@@ -184,7 +184,7 @@ export class MenuAdminService {
     const category = await this.prisma.menuCategory.update({
       where: { id },
       data: { name: dto.name },
-      include: { items: { orderBy: orderBySort, include: withPhotos } },
+      include: { items: { orderBy: orderBySort, include: withItemDetails } },
     });
     return toManagedMenuCategoryDto(
       category,
@@ -240,7 +240,7 @@ export class MenuAdminService {
   // ── Вспомогательное ────────────────────────────────────────────────
 
   private async toManagedItem(
-    item: MenuItemWithPhotos,
+    item: MenuItemDetails,
   ): Promise<ManagedMenuItemDto> {
     return toManagedMenuItemDto(item, await this.menuService.getDtoContext());
   }

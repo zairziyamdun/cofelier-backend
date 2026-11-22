@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -8,8 +12,15 @@ import {
   MenuDtoContext,
   toMenuCategoryDto,
   toMenuItemDto,
-  withPhotos,
+  withItemDetails,
 } from './menu.mapper';
+import { toGroupRule, withModifierGroups } from './menu-modifiers.mapper';
+import {
+  ModifierSelectionError,
+  ResolvedModifier,
+  resolveSelection,
+  SelectedModifier,
+} from './modifier-selection';
 
 @Injectable()
 export class MenuService {
@@ -28,7 +39,7 @@ export class MenuService {
           items: {
             where: { isArchived: false },
             orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-            include: withPhotos,
+            include: withItemDetails,
           },
         },
       }),
@@ -58,7 +69,7 @@ export class MenuService {
           { id: 'asc' },
         ],
         take: limit,
-        include: withPhotos,
+        include: withItemDetails,
       }),
       this.getDtoContext(),
     ]);
@@ -91,18 +102,67 @@ export class MenuService {
     };
   }
 
-  // Для заказов: актуальные цена и стоп-лист позиций. Архивные не возвращаются.
-  findItemsForOrder(ids: number[]): Promise<OrderableMenuItem[]> {
-    return this.prisma.menuItem.findMany({
-      where: { id: { in: ids }, isArchived: false },
-      select: { id: true, name: true, price: true, inStopList: true },
+  // Строки заказа по актуальному меню: позиция есть и не в стоп-листе, выбор
+  // добавок верный, цена за штуку — из меню с надбавками (не из запроса).
+  // Меню изменилось — 409 (обновить корзину), неверный выбор — 400.
+  async resolveOrderLines(
+    lines: OrderLineInput[],
+  ): Promise<ResolvedOrderLine[]> {
+    const items = await this.prisma.menuItem.findMany({
+      where: {
+        id: { in: [...new Set(lines.map((line) => line.menuItemId))] },
+        isArchived: false,
+      },
+      include: withModifierGroups,
+    });
+    const byId = new Map(items.map((item) => [item.id, item]));
+
+    return lines.map((line) => {
+      const item = byId.get(line.menuItemId);
+      if (!item) {
+        throw new ConflictException(
+          'Одной из позиций больше нет в меню — обновите корзину',
+        );
+      }
+      if (item.inStopList) {
+        throw new ConflictException(
+          `«${item.name}» сейчас нет в наличии — уберите из корзины`,
+        );
+      }
+      try {
+        const { modifiers, extra } = resolveSelection(
+          item.name,
+          item.modifierGroups.map((link) => toGroupRule(link.group)),
+          line.modifiers,
+        );
+        return {
+          menuItemId: item.id,
+          name: item.name,
+          price: item.price + extra,
+          quantity: line.quantity,
+          modifiers,
+        };
+      } catch (error) {
+        if (!(error instanceof ModifierSelectionError)) throw error;
+        throw error.conflict
+          ? new ConflictException(error.message)
+          : new BadRequestException(error.message);
+      }
     });
   }
 }
 
-export type OrderableMenuItem = {
-  id: number;
+export type OrderLineInput = {
+  menuItemId: number;
+  quantity: number;
+  modifiers: SelectedModifier[];
+};
+
+export type ResolvedOrderLine = {
+  menuItemId: number;
   name: string;
+  // За штуку вместе с добавками.
   price: number;
-  inStopList: boolean;
+  quantity: number;
+  modifiers: ResolvedModifier[];
 };

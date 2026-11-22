@@ -3,12 +3,10 @@ import {
   toManagedMenuItemDto,
   toMenuCategoryDto,
   toMenuItemDto,
-  type MenuItemWithPhotos,
+  type MenuItemDetails,
 } from './menu.mapper';
 
-function makeItem(
-  overrides: Partial<MenuItemWithPhotos> = {},
-): MenuItemWithPhotos {
+function makeItem(overrides: Partial<MenuItemDetails> = {}): MenuItemDetails {
   return {
     id: 1,
     categoryId: 1,
@@ -26,6 +24,7 @@ function makeItem(
     createdAt: new Date(0),
     updatedAt: new Date(0),
     photos: [],
+    modifierGroups: [],
     ...overrides,
   };
 }
@@ -67,7 +66,9 @@ describe('menu mapper', () => {
         'photos',
         'slug',
         'badges',
+        'defaultPrice',
         'isAvailable',
+        'modifierGroups',
         'name',
         'portion',
         'price',

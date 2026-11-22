@@ -14,20 +14,34 @@ import {
 } from './dto/menu-response.dto';
 import { BadgeContext, computeBadges, isAutoPopular } from './menu-badges';
 import { photoFileKey } from './menu-photo-processing';
+import {
+  ItemGroupLink,
+  toGroupRule,
+  toModifierGroupDto,
+  withModifierGroups,
+} from './menu-modifiers.mapper';
+import { defaultExtra } from './modifier-selection';
 
 // Всё, что нужно маппингу сверх строки БД: метки и адреса файлов фото.
 export type MenuDtoContext = BadgeContext & {
   photoUrl: (fileKey: string) => string;
 };
 
-export type MenuItemWithPhotos = MenuItem & { photos: MenuItemPhoto[] };
+export type MenuItemDetails = MenuItem & {
+  photos: MenuItemPhoto[];
+  modifierGroups: ItemGroupLink[];
+};
 
 // Фото всегда читаются в этом порядке: первое — обложка.
 export const photoOrder = [
   { sortOrder: 'asc' as const },
   { id: 'asc' as const },
 ];
-export const withPhotos = { photos: { orderBy: photoOrder } };
+// Всё, что нужно для ответа о позиции: фото и группы добавок.
+export const withItemDetails = {
+  photos: { orderBy: photoOrder },
+  ...withModifierGroups,
+};
 
 export function toMenuPhotoDto(
   photo: MenuItemPhoto,
@@ -47,7 +61,7 @@ export function toMenuPhotoDto(
 }
 
 export function toMenuItemDto(
-  item: MenuItemWithPhotos,
+  item: MenuItemDetails,
   context: MenuDtoContext,
 ): MenuItemDto {
   return {
@@ -59,12 +73,16 @@ export function toMenuItemDto(
     price: item.price,
     photos: item.photos.map((photo) => toMenuPhotoDto(photo, context)),
     isAvailable: !item.inStopList,
+    modifierGroups: item.modifierGroups.map((link) =>
+      toModifierGroupDto(link.group),
+    ),
+    defaultPrice: priceWithDefaults(item),
     badges: computeBadges(item, context),
   };
 }
 
 export function toMenuCategoryDto(
-  category: MenuCategory & { items: MenuItemWithPhotos[] },
+  category: MenuCategory & { items: MenuItemDetails[] },
   context: MenuDtoContext,
 ): MenuCategoryDto {
   return {
@@ -76,7 +94,7 @@ export function toMenuCategoryDto(
 }
 
 export function toManagedMenuItemDto(
-  item: MenuItemWithPhotos,
+  item: MenuItemDetails,
   context: MenuDtoContext,
 ): ManagedMenuItemDto {
   return {
@@ -91,7 +109,7 @@ export function toManagedMenuItemDto(
 }
 
 export function toManagedMenuCategoryDto(
-  category: MenuCategory & { items: MenuItemWithPhotos[] },
+  category: MenuCategory & { items: MenuItemDetails[] },
   context: MenuDtoContext,
 ): ManagedMenuCategoryDto {
   return {
@@ -100,4 +118,12 @@ export function toManagedMenuCategoryDto(
     name: category.name,
     items: category.items.map((item) => toManagedMenuItemDto(item, context)),
   };
+}
+
+// Цена с добавками по умолчанию; null — по умолчанию не собрать.
+function priceWithDefaults(item: MenuItemDetails): number | null {
+  const extra = defaultExtra(
+    item.modifierGroups.map((link) => toGroupRule(link.group)),
+  );
+  return extra === null ? null : item.price + extra;
 }

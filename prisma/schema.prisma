@@ -50,11 +50,11 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id              Int             @id @default(autoincrement())
-  categoryId      Int             @map("category_id")
+  id              Int                     @id @default(autoincrement())
+  categoryId      Int                     @map("category_id")
   // Для ссылки на товар (/menu?item=raf); при переименовании не меняется.
-  slug            String          @unique
-  category        MenuCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  slug            String                  @unique
+  category        MenuCategory            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   name            String
   description     String?
   // Объём или вес для подписи: «250 мл», «120 г».
@@ -62,21 +62,22 @@ model MenuItem {
   // Цена в целых тенге: дробных сумм в меню нет.
   price           Int
   // Стоп-лист: позиция видна в меню, но заказать её нельзя.
-  inStopList      Boolean         @default(false) @map("in_stop_list")
+  inStopList      Boolean                 @default(false) @map("in_stop_list")
   // Удалённая позиция, которая уже есть в заказах: скрыта из меню, но история цела.
-  isArchived      Boolean         @default(false) @map("is_archived")
+  isArchived      Boolean                 @default(false) @map("is_archived")
   // Метки, которые ставит менеджер. «Новинка» и «Популярно» считаются сами —
   // menu/menu-badges.ts.
-  badges          MenuBadge[]     @default([])
+  badges          MenuBadge[]             @default([])
   // До какого момента позиция — «Новинка»; null — не новинка.
-  newUntil        DateTime?       @map("new_until")
+  newUntil        DateTime?               @map("new_until")
   // «Популярно» вручную: true — всегда, false — никогда, null — по заказам.
-  popularOverride Boolean?        @map("popular_override")
-  sortOrder       Int             @default(0) @map("sort_order")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  popularOverride Boolean?                @map("popular_override")
+  sortOrder       Int                     @default(0) @map("sort_order")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
   orderItems      OrderItem[]
   photos          MenuItemPhoto[]
+  modifierGroups  MenuItemModifierGroup[]
 
   @@index([categoryId, sortOrder])
   @@map("menu_items")
@@ -98,6 +99,66 @@ model MenuItemPhoto {
 
   @@index([menuItemId, sortOrder])
   @@map("menu_item_photos")
+}
+
+// Как выбирают варианты группы добавок: один, несколько или количеством.
+enum ModifierGroupKind {
+  single
+  multiple
+  quantity
+}
+
+// Группа добавок («Молоко», «Сироп»): заводится один раз, подключается к товарам.
+// Правила выбора — menu/modifier-selection.ts.
+model ModifierGroup {
+  id        Int                     @id @default(autoincrement())
+  name      String
+  kind      ModifierGroupKind
+  // Обязательна: без выбора в этой группе товар не добавить.
+  required  Boolean                 @default(false)
+  // multiple — сколько вариантов можно выбрать; quantity — сколько штук всего.
+  // single — не используется (всегда один). null — без ограничения.
+  maxSelect Int?                    @map("max_select")
+  sortOrder Int                     @default(0) @map("sort_order")
+  options   ModifierOption[]
+  items     MenuItemModifierGroup[]
+  createdAt DateTime                @default(now()) @map("created_at")
+  updatedAt DateTime                @updatedAt @map("updated_at")
+
+  @@map("modifier_groups")
+}
+
+model ModifierOption {
+  id         Int           @id @default(autoincrement())
+  groupId    Int           @map("group_id")
+  group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name       String
+  // Надбавка к цене товара в целых тенге; 0 — бесплатно.
+  priceDelta Int           @default(0) @map("price_delta")
+  // Выбран сразу: «+» в меню добавляет товар с вариантами по умолчанию.
+  isDefault  Boolean       @default(false) @map("is_default")
+  // Закончилось (овсяное молоко): вариант виден, но выбрать нельзя.
+  inStopList Boolean       @default(false) @map("in_stop_list")
+  // Подпись к варианту, например объём у размера: «350 мл».
+  note       String?
+  sortOrder  Int           @default(0) @map("sort_order")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  @@index([groupId, sortOrder])
+  @@map("modifier_options")
+}
+
+// Какие группы добавок у товара и в каком порядке.
+model MenuItemModifierGroup {
+  menuItemId Int           @map("menu_item_id")
+  menuItem   MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  groupId    Int           @map("group_id")
+  group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sortOrder  Int           @default(0) @map("sort_order")
+
+  @@id([menuItemId, groupId])
+  @@map("menu_item_modifier_groups")
 }
 
 // Ручные метки позиции меню.
@@ -137,16 +198,35 @@ model Order {
 }
 
 model OrderItem {
-  id         Int      @id @default(autoincrement())
-  orderId    Int      @map("order_id")
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItemId Int      @map("menu_item_id")
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  id         Int                 @id @default(autoincrement())
+  orderId    Int                 @map("order_id")
+  order      Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId Int                 @map("menu_item_id")
+  menuItem   MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
   // Копия названия и цены на момент заказа: правка меню не меняет старые заказы.
   name       String
+  // Цена за штуку вместе с добавками, на момент заказа.
   price      Int
   quantity   Int
+  modifiers  OrderItemModifier[]
 
   @@index([orderId])
   @@map("order_items")
+}
+
+// Копия выбранной добавки на момент заказа: правка или удаление добавки в меню
+// старые заказы не меняет.
+model OrderItemModifier {
+  id          Int       @id @default(autoincrement())
+  orderItemId Int       @map("order_item_id")
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  groupName   String    @map("group_name")
+  optionName  String    @map("option_name")
+  priceDelta  Int       @map("price_delta")
+  quantity    Int       @default(1)
+  // Был вариантом по умолчанию — бариста выделяет только отличия.
+  isDefault   Boolean   @default(false) @map("is_default")
+
+  @@index([orderItemId])
+  @@map("order_item_modifiers")
 }
