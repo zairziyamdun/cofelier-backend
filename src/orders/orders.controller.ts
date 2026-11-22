@@ -24,7 +24,11 @@ import type { AuthUser } from '../common/auth-user';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/order-request.dto';
-import { OrderDto, StaffOrderDto } from './dto/order-response.dto';
+import {
+  OrderDto,
+  RepeatOrderDto,
+  StaffOrderDto,
+} from './dto/order-response.dto';
 import { OrdersService } from './orders.service';
 
 @ApiTags('orders')
@@ -55,6 +59,17 @@ export class OrdersController {
   @ApiOkResponse({ type: [OrderDto] })
   findMine(@CurrentUser() user: AuthUser): Promise<OrderDto[]> {
     return this.ordersService.findMine(user.id);
+  }
+
+  @Get('my/repeat')
+  @Roles('client')
+  @ApiOperation({
+    summary:
+      'Последний заказ для «Повторить»: строки и можно ли собрать их по текущему меню',
+  })
+  @ApiOkResponse({ type: RepeatOrderDto })
+  repeatLast(@CurrentUser() user: AuthUser): Promise<RepeatOrderDto> {
+    return this.ordersService.repeatLast(user.id);
   }
 
   @Get('queue')

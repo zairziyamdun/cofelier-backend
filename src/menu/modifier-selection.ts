@@ -22,6 +22,7 @@ export type ModifierGroupRule = {
 export type SelectedModifier = { optionId: number; quantity: number };
 
 export type ResolvedModifier = {
+  optionId: number;
   groupName: string;
   optionName: string;
   priceDelta: number;
@@ -104,6 +105,7 @@ export function resolveSelection(
     for (const option of picked) {
       const quantity = chosen.get(option.id) ?? 1;
       modifiers.push({
+        optionId: option.id,
         groupName: group.name,
         optionName: option.name,
         priceDelta: option.priceDelta,
