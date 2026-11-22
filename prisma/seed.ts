@@ -11,7 +11,10 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { PrismaClient } from '../src/generated/prisma/client';
-import type { MenuBadge } from '../src/generated/prisma/enums';
+import type {
+  MenuBadge,
+  ModifierGroupKind,
+} from '../src/generated/prisma/enums';
 import { photoFileKey, processPhoto } from '../src/menu/menu-photo-processing';
 import { slugify } from '../src/menu/slug';
 import { S3Storage, s3ConfigFromEnv } from '../src/storage/s3-storage';
@@ -222,6 +225,155 @@ const menu: SeedCategory[] = [
   },
 ];
 
+// Демо-добавки: группы по названию, варианты по названию внутри группы.
+type SeedOption = {
+  name: string;
+  priceDelta?: number;
+  isDefault?: boolean;
+  note?: string;
+};
+type SeedGroup = {
+  name: string;
+  kind: ModifierGroupKind;
+  required?: boolean;
+  maxSelect?: number;
+  options: SeedOption[];
+};
+
+const MODIFIER_GROUPS: SeedGroup[] = [
+  {
+    name: 'Объём',
+    kind: 'single',
+    required: true,
+    options: [
+      { name: 'Стандарт', isDefault: true },
+      { name: 'Большой', priceDelta: 400, note: '+150 мл' },
+    ],
+  },
+  {
+    name: 'Молоко',
+    kind: 'single',
+    options: [
+      { name: 'Обычное', isDefault: true },
+      { name: 'Овсяное', priceDelta: 300 },
+      { name: 'Кокосовое', priceDelta: 300 },
+      { name: 'Безлактозное', priceDelta: 200 },
+    ],
+  },
+  {
+    name: 'Сахар',
+    kind: 'single',
+    options: [
+      { name: 'Без сахара', isDefault: true },
+      { name: '1 ложка' },
+      { name: '2 ложки' },
+    ],
+  },
+  {
+    name: 'Сироп',
+    kind: 'multiple',
+    maxSelect: 2,
+    options: [
+      { name: 'Карамель', priceDelta: 200 },
+      { name: 'Ваниль', priceDelta: 200 },
+      { name: 'Лесной орех', priceDelta: 200 },
+    ],
+  },
+  {
+    name: 'Доп. шот',
+    kind: 'quantity',
+    maxSelect: 2,
+    options: [{ name: 'Эспрессо', priceDelta: 350 }],
+  },
+];
+
+// Название позиции → её группы добавок по порядку.
+const ITEM_MODIFIERS: Record<string, string[]> = {
+  Эспрессо: ['Сахар', 'Доп. шот'],
+  Американо: ['Объём', 'Сахар', 'Доп. шот'],
+  Капучино: ['Объём', 'Молоко', 'Сироп', 'Сахар', 'Доп. шот'],
+  'Флэт уайт': ['Молоко', 'Сахар', 'Доп. шот'],
+  Латте: ['Объём', 'Молоко', 'Сироп', 'Сахар', 'Доп. шот'],
+  Раф: ['Молоко', 'Сироп', 'Сахар'],
+  'Колд брю': ['Объём', 'Сахар'],
+  'Медный латте': ['Молоко'],
+  'Матча латте': ['Молоко', 'Сироп'],
+  Какао: ['Молоко', 'Сахар'],
+};
+
+async function seedModifierGroups(
+  prisma: PrismaClient,
+): Promise<Map<string, number>> {
+  const ids = new Map<string, number>();
+  for (const [groupIndex, group] of MODIFIER_GROUPS.entries()) {
+    const data = {
+      kind: group.kind,
+      required: group.required ?? false,
+      maxSelect: group.maxSelect ?? null,
+      sortOrder: groupIndex,
+    };
+    const existing = await prisma.modifierGroup.findFirst({
+      where: { name: group.name },
+      select: { id: true },
+    });
+    const groupId = existing
+      ? (
+          await prisma.modifierGroup.update({
+            where: { id: existing.id },
+            data,
+          })
+        ).id
+      : (
+          await prisma.modifierGroup.create({
+            data: { ...data, name: group.name },
+          })
+        ).id;
+    ids.set(group.name, groupId);
+
+    for (const [optionIndex, option] of group.options.entries()) {
+      const optionData = {
+        priceDelta: option.priceDelta ?? 0,
+        isDefault: option.isDefault ?? false,
+        note: option.note ?? null,
+        sortOrder: optionIndex,
+      };
+      const found = await prisma.modifierOption.findFirst({
+        where: { groupId, name: option.name },
+        select: { id: true },
+      });
+      if (found) {
+        await prisma.modifierOption.update({
+          where: { id: found.id },
+          data: optionData,
+        });
+      } else {
+        await prisma.modifierOption.create({
+          data: { ...optionData, groupId, name: option.name },
+        });
+      }
+    }
+  }
+  return ids;
+}
+
+async function seedItemModifiers(
+  prisma: PrismaClient,
+  itemId: number,
+  groupNames: string[],
+  groupIds: Map<string, number>,
+): Promise<void> {
+  await prisma.menuItemModifierGroup.deleteMany({
+    where: { menuItemId: itemId },
+  });
+  await prisma.menuItemModifierGroup.createMany({
+    data: groupNames.map((name, index) => ({
+      menuItemId: itemId,
+      groupId: groupIds.get(name) ?? 0,
+      sortOrder: index,
+    })),
+  });
+}
+
 async function main() {
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -232,6 +384,7 @@ async function main() {
   else process.stdout.write('Сиды: хранилище не задано (S3_*) — без фото\n');
 
   try {
+    const groupIds = await seedModifierGroups(prisma);
     for (const [categoryIndex, category] of menu.entries()) {
       const saved = await prisma.menuCategory.upsert({
         where: { slug: category.slug },
@@ -266,6 +419,10 @@ async function main() {
                 data: { ...data, name: item.name, categoryId: saved.id },
               })
             ).id;
+        const modifierGroups = ITEM_MODIFIERS[item.name];
+        if (modifierGroups) {
+          await seedItemModifiers(prisma, itemId, modifierGroups, groupIds);
+        }
         const photoFile = SEED_PHOTOS[item.name];
         if (storage && photoFile) {
           await seedPhoto(prisma, storage, itemId, photoFile);
