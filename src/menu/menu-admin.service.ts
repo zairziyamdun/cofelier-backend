@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import type { MenuItem } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateMenuCategoryDto,
@@ -16,9 +15,15 @@ import {
   UpdateMenuItemDto,
 } from './dto/menu-manage.dto';
 import { defaultNewUntil } from './menu-badges';
-import { toManagedMenuCategoryDto, toManagedMenuItemDto } from './menu.mapper';
+import { MenuPhotosService } from './menu-photos.service';
+import {
+  MenuItemWithPhotos,
+  toManagedMenuCategoryDto,
+  toManagedMenuItemDto,
+  withPhotos,
+} from './menu.mapper';
 import { MenuService } from './menu.service';
-import { slugify } from './slug';
+import { pickFreeSlug, slugify } from './slug';
 
 function toDateOrNull(value: string | null): Date | null {
   return value === null ? null : new Date(value);
@@ -32,6 +37,7 @@ export class MenuAdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly menuService: MenuService,
+    private readonly photos: MenuPhotosService,
   ) {}
 
   // В отличие от публичного меню — и пустые категории, и позиции в стоп-листе.
@@ -39,10 +45,14 @@ export class MenuAdminService {
     const categories = await this.prisma.menuCategory.findMany({
       orderBy: orderBySort,
       include: {
-        items: { where: { isArchived: false }, orderBy: orderBySort },
+        items: {
+          where: { isArchived: false },
+          orderBy: orderBySort,
+          include: withPhotos,
+        },
       },
     });
-    const context = await this.menuService.getBadgeContext();
+    const context = await this.menuService.getDtoContext();
     return categories.map((category) =>
       toManagedMenuCategoryDto(category, context),
     );
@@ -62,6 +72,7 @@ export class MenuAdminService {
       data: {
         categoryId: dto.categoryId,
         name: dto.name,
+        slug: await this.uniqueItemSlug(dto.name),
         description: dto.description ?? null,
         portion: dto.portion ?? null,
         price: dto.price,
@@ -75,6 +86,7 @@ export class MenuAdminService {
         // Новая позиция — в конец своей категории.
         sortOrder: (last?.sortOrder ?? -1) + 1,
       },
+      include: withPhotos,
     });
     return this.toManagedItem(item);
   }
@@ -100,6 +112,7 @@ export class MenuAdminService {
         newUntil:
           dto.newUntil === undefined ? undefined : toDateOrNull(dto.newUntil),
       },
+      include: withPhotos,
     });
     return this.toManagedItem(item);
   }
@@ -112,24 +125,31 @@ export class MenuAdminService {
     const item = await this.prisma.menuItem.update({
       where: { id },
       data: { inStopList },
+      include: withPhotos,
     });
     return this.toManagedItem(item);
   }
 
   // Позиция из прошлых заказов не удаляется, а уходит в архив: история заказов цела.
+  // Фото не нужны ни там, ни там — удаляются вместе с файлами.
   async deleteItem(id: number): Promise<void> {
     await this.findItemOrThrow(id);
+    const fileKeys = await this.photos.fileKeysOf(id);
     const ordered = await this.prisma.orderItem.count({
       where: { menuItemId: id },
     });
     if (ordered > 0) {
-      await this.prisma.menuItem.update({
-        where: { id },
-        data: { isArchived: true, inStopList: false },
-      });
-      return;
+      await this.prisma.$transaction([
+        this.prisma.menuItemPhoto.deleteMany({ where: { menuItemId: id } }),
+        this.prisma.menuItem.update({
+          where: { id },
+          data: { isArchived: true, inStopList: false },
+        }),
+      ]);
+    } else {
+      await this.prisma.menuItem.delete({ where: { id } });
     }
-    await this.prisma.menuItem.delete({ where: { id } });
+    await this.photos.deleteFilesQuietly(fileKeys);
   }
 
   // ── Категории ──────────────────────────────────────────────────────
@@ -147,11 +167,11 @@ export class MenuAdminService {
         slug: await this.uniqueSlug(dto.name),
         sortOrder: (last?.sortOrder ?? -1) + 1,
       },
-      include: { items: true },
+      include: { items: { include: withPhotos } },
     });
     return toManagedMenuCategoryDto(
       category,
-      await this.menuService.getBadgeContext(),
+      await this.menuService.getDtoContext(),
     );
   }
 
@@ -164,11 +184,11 @@ export class MenuAdminService {
     const category = await this.prisma.menuCategory.update({
       where: { id },
       data: { name: dto.name },
-      include: { items: { orderBy: orderBySort } },
+      include: { items: { orderBy: orderBySort, include: withPhotos } },
     });
     return toManagedMenuCategoryDto(
       category,
-      await this.menuService.getBadgeContext(),
+      await this.menuService.getDtoContext(),
     );
   }
 
@@ -219,8 +239,10 @@ export class MenuAdminService {
 
   // ── Вспомогательное ────────────────────────────────────────────────
 
-  private async toManagedItem(item: MenuItem): Promise<ManagedMenuItemDto> {
-    return toManagedMenuItemDto(item, await this.menuService.getBadgeContext());
+  private async toManagedItem(
+    item: MenuItemWithPhotos,
+  ): Promise<ManagedMenuItemDto> {
+    return toManagedMenuItemDto(item, await this.menuService.getDtoContext());
   }
 
   // Архивная позиция для панели не существует.
@@ -237,16 +259,22 @@ export class MenuAdminService {
     if (count === 0) throw new NotFoundException('Категория не найдена');
   }
 
+  // Slug позиции — тоже транслит названия; уникален среди всех позиций, включая архив.
+  private async uniqueItemSlug(name: string): Promise<string> {
+    const base = slugify(name, 'item');
+    const taken = await this.prisma.menuItem.findMany({
+      where: { slug: { startsWith: base } },
+      select: { slug: true },
+    });
+    return pickFreeSlug(base, new Set(taken.map((item) => item.slug)));
+  }
+
   private async uniqueSlug(name: string): Promise<string> {
     const base = slugify(name);
     const taken = await this.prisma.menuCategory.findMany({
       where: { slug: { startsWith: base } },
       select: { slug: true },
     });
-    const takenSet = new Set(taken.map((category) => category.slug));
-    if (!takenSet.has(base)) return base;
-    let suffix = 2;
-    while (takenSet.has(`${base}-${suffix}`)) suffix += 1;
-    return `${base}-${suffix}`;
+    return pickFreeSlug(base, new Set(taken.map((category) => category.slug)));
   }
 }

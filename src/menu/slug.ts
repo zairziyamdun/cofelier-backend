@@ -43,8 +43,8 @@ const cyrillicToLatin: Record<string, string> = {
   і: 'i',
 };
 
-// «Чай и не кофе» → «chay-i-ne-kofe»: slug для якоря категории на странице меню.
-export function slugify(name: string): string {
+// «Чай и не кофе» → «chay-i-ne-kofe»: slug для якоря категории и ссылки на товар.
+export function slugify(name: string, fallback = 'category'): string {
   const latin = [...name.toLowerCase()]
     .map((char) => cyrillicToLatin[char] ?? char)
     .join('');
@@ -53,5 +53,13 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
     .replace(/-+$/g, '');
-  return slug || 'category';
+  return slug || fallback;
+}
+
+// Занят base — пробуем base-2, base-3…: дубль названия не ломает ссылки.
+export function pickFreeSlug(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base;
+  let suffix = 2;
+  while (taken.has(`${base}-${suffix}`)) suffix += 1;
+  return `${base}-${suffix}`;
 }

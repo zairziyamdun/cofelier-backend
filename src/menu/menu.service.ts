@@ -1,17 +1,22 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { MenuCategoryDto, MenuItemDto } from './dto/menu-response.dto';
+import { pickPopularIds, popularWindowStart } from './menu-badges';
 import {
-  BadgeContext,
-  pickPopularIds,
-  popularWindowStart,
-} from './menu-badges';
-import { toMenuCategoryDto, toMenuItemDto } from './menu.mapper';
+  MenuDtoContext,
+  toMenuCategoryDto,
+  toMenuItemDto,
+  withPhotos,
+} from './menu.mapper';
 
 @Injectable()
 export class MenuService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   // Публичное меню: категории и позиции по порядку; пустые категории и архив не показываем.
   async getPublicMenu(): Promise<MenuCategoryDto[]> {
@@ -23,10 +28,11 @@ export class MenuService {
           items: {
             where: { isArchived: false },
             orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+            include: withPhotos,
           },
         },
       }),
-      this.getBadgeContext(),
+      this.getDtoContext(),
     ]);
     return categories.map((category) => toMenuCategoryDto(category, context));
   }
@@ -52,15 +58,16 @@ export class MenuService {
           { id: 'asc' },
         ],
         take: limit,
+        include: withPhotos,
       }),
-      this.getBadgeContext(),
+      this.getDtoContext(),
     ]);
     return items.map((item) => toMenuItemDto(item, context));
   }
 
-  // Что нужно для меток «Популярно» и «Новинка»: порции за окно без отменённых
-  // заказов. Считается на каждый запрос — позиций и заказов немного.
-  async getBadgeContext(now = new Date()): Promise<BadgeContext> {
+  // Что нужно маппингу: порции за окно без отменённых заказов (метки «Популярно»
+  // и «Новинка») и адреса фото. Считается на каждый запрос — позиций и заказов немного.
+  async getDtoContext(now = new Date()): Promise<MenuDtoContext> {
     const rows = await this.prisma.orderItem.groupBy({
       by: ['menuItemId'],
       where: {
@@ -77,7 +84,11 @@ export class MenuService {
         quantity: row._sum.quantity ?? 0,
       })),
     );
-    return { now, popularIds };
+    return {
+      now,
+      popularIds,
+      photoUrl: (fileKey) => this.storage.publicUrl(fileKey),
+    };
   }
 
   // Для заказов: актуальные цена и стоп-лист позиций. Архивные не возвращаются.

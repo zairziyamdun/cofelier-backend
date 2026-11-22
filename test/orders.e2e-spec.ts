@@ -84,14 +84,25 @@ describe('Заказы (e2e)', () => {
     categoryId = category.id;
     [latte, croissant, soldOut] = await Promise.all([
       prisma.menuItem.create({
-        data: { categoryId, name: 'Латте e2e', price: 1600 },
-      }),
-      prisma.menuItem.create({
-        data: { categoryId, name: 'Круассан e2e', price: 1200 },
+        data: {
+          categoryId,
+          slug: `latte-e2e-${Date.now()}`,
+          name: 'Латте e2e',
+          price: 1600,
+        },
       }),
       prisma.menuItem.create({
         data: {
           categoryId,
+          slug: `croissant-e2e-${Date.now()}`,
+          name: 'Круассан e2e',
+          price: 1200,
+        },
+      }),
+      prisma.menuItem.create({
+        data: {
+          categoryId,
+          slug: `cold-brew-e2e-${Date.now()}`,
           name: 'Колд брю e2e',
           price: 1900,
           inStopList: true,

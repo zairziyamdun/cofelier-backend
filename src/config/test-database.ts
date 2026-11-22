@@ -27,6 +27,16 @@ export function resolveTestDatabaseUrl(env: {
   return url.toString();
 }
 
+// e2e не пишут в настоящее хранилище фото: тест фото подменяет его памятью,
+// остальным оно не нужно. Пустые S3_* — «хранилище не задано» (env.ts).
+export const E2E_STORAGE_ENV = {
+  S3_ENDPOINT: '',
+  S3_BUCKET: '',
+  S3_ACCESS_KEY_ID: '',
+  S3_SECRET_ACCESS_KEY: '',
+  S3_PUBLIC_URL: '',
+};
+
 // Имя базы для сообщений: без логина и пароля.
 export function databaseName(databaseUrl: string): string {
   return decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ''));

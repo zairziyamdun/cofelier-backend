@@ -2,9 +2,45 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import { MenuItemBadge } from '../menu-badges';
 
+export class MenuPhotoUrlsDto {
+  @ApiProperty({ description: 'Ширина 320 px — строка меню' })
+  small!: string;
+
+  @ApiProperty({ description: 'Ширина 800 px — шторка товара' })
+  medium!: string;
+
+  @ApiProperty({ description: 'Ширина 1600 px — большой экран' })
+  large!: string;
+}
+
+export class MenuPhotoDto {
+  @ApiProperty({ example: 12 })
+  id!: number;
+
+  @ApiProperty({ description: 'Ширина оригинала, px', example: 1200 })
+  width!: number;
+
+  @ApiProperty({ description: 'Высота оригинала, px', example: 1500 })
+  height!: number;
+
+  @ApiProperty({
+    description: 'Прозрачный фон: можно показывать без рамки',
+  })
+  hasAlpha!: boolean;
+
+  @ApiProperty({ type: MenuPhotoUrlsDto })
+  urls!: MenuPhotoUrlsDto;
+}
+
 export class MenuItemDto {
   @ApiProperty({ example: 3 })
   id!: number;
+
+  @ApiProperty({
+    description: 'Для ссылки на товар: /menu?item=kapuchino',
+    example: 'kapuchino',
+  })
+  slug!: string;
 
   @ApiProperty({ example: 'Капучино' })
   name!: string;
@@ -22,8 +58,11 @@ export class MenuItemDto {
   @ApiProperty({ description: 'Цена в целых тенге', example: 1500 })
   price!: number;
 
-  @ApiProperty({ type: String, nullable: true })
-  imageUrl!: string | null;
+  @ApiProperty({
+    type: [MenuPhotoDto],
+    description: 'Фото по порядку, первое — обложка; пусто — фото нет',
+  })
+  photos!: MenuPhotoDto[];
 
   @ApiProperty({
     description: 'false — позиция в стоп-листе: видна, но заказать нельзя',

@@ -6,6 +6,7 @@ import { Client } from 'pg';
 
 import {
   databaseName,
+  E2E_STORAGE_ENV,
   resolveTestDatabaseUrl,
 } from '../src/config/test-database';
 
@@ -37,7 +38,8 @@ function prisma(url: string, args: string[]): void {
   const result = spawnSync('pnpm', ['exec', 'prisma', ...args], {
     stdio: 'inherit',
     shell: process.platform === 'win32',
-    env: { ...process.env, DATABASE_URL: url },
+    // Сиды базы e2e — без фото: в хранилище разработки не пишем.
+    env: { ...process.env, ...E2E_STORAGE_ENV, DATABASE_URL: url },
   });
   if (result.status !== 0) {
     throw new Error(`prisma ${args.join(' ')} завершилась с ошибкой`);

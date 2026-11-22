@@ -2,6 +2,10 @@
 // а не к базе разработки. ConfigModule берёт process.env раньше, чем .env.
 import 'dotenv/config';
 
-import { resolveTestDatabaseUrl } from '../src/config/test-database';
+import {
+  E2E_STORAGE_ENV,
+  resolveTestDatabaseUrl,
+} from '../src/config/test-database';
 
 process.env.DATABASE_URL = resolveTestDatabaseUrl(process.env);
+Object.assign(process.env, E2E_STORAGE_ENV);
