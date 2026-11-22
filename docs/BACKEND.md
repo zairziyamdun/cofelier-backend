@@ -29,7 +29,7 @@ src/
                       порядок категорий; slug.ts — транслит для slug          (есть)
                       MenuPhotosService — фото позиций; menu-photo-processing.ts
                       — проверка и размеры (sharp)                            (есть)
-  storage/            StorageService — файлы в S3 (RustFS локально, R2 на проде) (есть)
+  storage/            StorageService — фото в S3 или на диске API; FilesController (есть)
   orders/             OrdersService, OrdersGateway (/orders), order-status.ts      (есть)
 socket-io.adapter.ts  Socket.IO с CORS сайта и cookie (подключается в main.ts)     (есть)
 prisma/
@@ -135,6 +135,7 @@ Dockerfile            многоступенчатая сборка; при ст
 | `PUT /menu/categories/order` | ✔ | | | | ✔ | ✔ |
 | `POST /menu/items/:id/photos` (multipart, поле `photos`) | ✔ | | | | ✔ | ✔ |
 | `PUT /menu/items/:id/photos/order`, `DELETE /menu/items/:id/photos/:photoId` | ✔ | | | | ✔ | ✔ |
+| `GET /files/menu/:itemId/:file` (фото в режиме «диск») | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
 | `GET/POST /menu/modifier-groups`, `PATCH/DELETE /menu/modifier-groups/:id` | ✔ | | | | ✔ | ✔ |
 | `POST /menu/modifier-groups/:id/options`, `PATCH/DELETE /menu/modifier-options/:id` | ✔ | | | | ✔ | ✔ |
 | `PUT /menu/items/:id/modifier-groups` | ✔ | | | | ✔ | ✔ |
@@ -216,8 +217,12 @@ Dockerfile            многоступенчатая сборка; при ст
   удаления файла — только предупреждение в логе).
 - Ошибки multer («File too large») переводятся на русский —
   `photo-upload-error.filter.ts`.
-- Хранилище не задано (`S3_*` пусто) — меню работает, загрузка отвечает `503`.
-  Вне прода API при старте создаёт бакет с открытым чтением.
+- Два режима хранилища (`storage/file-storage.ts`): заданы все `S3_*` — файлы в
+  S3 (вне прода API при старте создаёт бакет с открытым чтением); не заданы —
+  на диске API в `UPLOADS_DIR`, отдаёт их открытая ручка
+  `GET /files/menu/:itemId/:file` (только ключи `menu/<id>/<uuid>-<ширина>.webp`,
+  кеш навсегда). Адрес в ответе меню — `/api/files/…`, сайт ходит через свой
+  `/api`. Смена режима файлы не переносит.
 - В ответе меню у позиции `photos` (размеры и адреса трёх файлов) и `slug` —
   для ссылки на товар; slug — транслит названия, при переименовании не меняется.
 
@@ -341,7 +346,8 @@ env роняет приложение сразу с перечнем ошибо�
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | первый админ при старте API (только вместе, пароль от 12 символов) | ✔ |
 | `ADMIN_RESET_PASSWORD` | `true` — разово сбросить роль, доступ и пароль этого аккаунта | ✔ |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL` | хранилище фото меню; все вместе или ни одной (без них загрузка фото — `503`) | ✔ |
-| `S3_REGION` | регион S3: `us-east-1` локально (RustFS), `auto` на R2; по умолчанию `auto` | ✔ |
+| `S3_REGION` | регион S3 из настроек хранилища (RustFS, MinIO — `us-east-1`); по умолчанию `auto` | ✔ |
+| `UPLOADS_DIR` | папка фото в режиме «диск» (S3 не задан), по умолчанию `uploads`; на Railway — на Volume | ✔ |
 | `E2E_DATABASE_URL` | только для `pnpm test:e2e`: своя база с именем на `_test` (приложение не читает) | ✔ |
 
 ---

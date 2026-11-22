@@ -19,6 +19,10 @@ export class MemoryStorage extends StorageService {
     return `https://storage.test/${key}`;
   }
 
+  localPath(): string | null {
+    return null;
+  }
+
   keysOf(itemId: number): string[] {
     return [...this.files.keys()].filter((key) =>
       key.startsWith(`menu/${itemId}/`),

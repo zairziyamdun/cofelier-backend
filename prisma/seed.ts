@@ -2,8 +2,9 @@
 // Первого админа создаёт API при старте из ADMIN_EMAIL/ADMIN_PASSWORD
 // (src/users/admin-bootstrap.service.ts), не сиды.
 // Повторный запуск обновляет записи по slug категории и названию позиции, не дублируя их.
-// Фото демо-позиций — рендеры из prisma/seed-photos; грузятся, только если задано
-// хранилище (S3_*) и у позиции ещё нет фото.
+// Фото демо-позиций — рендеры из prisma/seed-photos; грузятся туда же, куда и
+// фото из админки (S3, если подключён, иначе диск — UPLOADS_DIR), если у
+// позиции ещё нет фото. SEED_SKIP_PHOTOS=true — без фото (база e2e).
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'node:crypto';
@@ -17,7 +18,10 @@ import type {
 } from '../src/generated/prisma/enums';
 import { photoFileKey, processPhoto } from '../src/menu/menu-photo-processing';
 import { slugify } from '../src/menu/slug';
-import { S3Storage, s3ConfigFromEnv } from '../src/storage/s3-storage';
+import {
+  fileStorageFromEnv,
+  type FileStorage,
+} from '../src/storage/file-storage';
 
 type SeedItem = {
   name: string;
@@ -51,7 +55,7 @@ const SEED_PHOTOS: Record<string, string> = {
 
 async function seedPhoto(
   prisma: PrismaClient,
-  storage: S3Storage,
+  storage: FileStorage,
   itemId: number,
   file: string,
 ): Promise<void> {
@@ -64,11 +68,7 @@ async function seedPhoto(
   );
   const key = `menu/${itemId}/${randomUUID()}`;
   for (const variant of photo.variants) {
-    await storage.put(
-      photoFileKey(key, variant.width),
-      variant.body,
-      'image/webp',
-    );
+    await storage.put(photoFileKey(key, variant.width), variant.body);
   }
   await prisma.menuItemPhoto.create({
     data: {
@@ -378,10 +378,10 @@ async function main() {
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
   });
-  const s3Config = s3ConfigFromEnv(process.env);
-  const storage = s3Config ? new S3Storage(s3Config) : null;
-  if (storage) await storage.ensurePublicBucket();
-  else process.stdout.write('Сиды: хранилище не задано (S3_*) — без фото\n');
+  const skipPhotos = process.env.SEED_SKIP_PHOTOS === 'true';
+  const storage = skipPhotos ? null : fileStorageFromEnv(process.env);
+  if (storage) await storage.prepare();
+  else process.stdout.write('Сиды: без фото (SEED_SKIP_PHOTOS)\n');
 
   try {
     const groupIds = await seedModifierGroups(prisma);

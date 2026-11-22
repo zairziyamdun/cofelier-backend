@@ -35,8 +35,9 @@ const envSchema = z
         .optional(),
     ),
     ADMIN_PASSWORD: z.preprocess(emptyAsUndefined, z.string().optional()),
-    // Хранилище фото меню (S3: RustFS локально, Cloudflare R2 на проде).
-    // Не задано — API работает, но загрузка фото отвечает 503.
+    // Фото меню: S3 (RustFS локально, любое S3-совместимое на проде) или,
+    // если S3 не задан, — диск API в UPLOADS_DIR (на Railway — Volume).
+    UPLOADS_DIR: z.preprocess(emptyAsUndefined, z.string().optional()),
     S3_ENDPOINT: z.preprocess(emptyAsUndefined, z.url().optional()),
     S3_REGION: z.preprocess(emptyAsUndefined, z.string().default('auto')),
     S3_BUCKET: z.preprocess(emptyAsUndefined, z.string().optional()),

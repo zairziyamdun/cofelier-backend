@@ -1,3 +1,6 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 // e2e удаляют и меняют данные, поэтому идут только в отдельную базу `<имя>_test`:
 // база разработки и прод под тесты не попадут, даже если перепутать .env.
 export const TEST_DATABASE_SUFFIX = '_test';
@@ -27,14 +30,16 @@ export function resolveTestDatabaseUrl(env: {
   return url.toString();
 }
 
-// e2e не пишут в настоящее хранилище фото: тест фото подменяет его памятью,
-// остальным оно не нужно. Пустые S3_* — «хранилище не задано» (env.ts).
+// e2e не пишут в настоящее хранилище фото: пустые S3_* — режим «диск», а
+// папка — временная, вне проекта. Сиды базы e2e — без фото.
 export const E2E_STORAGE_ENV = {
   S3_ENDPOINT: '',
   S3_BUCKET: '',
   S3_ACCESS_KEY_ID: '',
   S3_SECRET_ACCESS_KEY: '',
   S3_PUBLIC_URL: '',
+  UPLOADS_DIR: join(tmpdir(), 'cofelier-e2e-uploads'),
+  SEED_SKIP_PHOTOS: 'true',
 };
 
 // Имя базы для сообщений: без логина и пароля.
