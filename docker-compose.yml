@@ -19,7 +19,8 @@ services:
       timeout: 5s
       retries: 10
 
-  # Хранилище фото меню — S3-совместимое (RustFS), как Cloudflare R2 на проде.
+  # Хранилище фото меню — S3-совместимое (RustFS). Без него (S3_* пусто) фото
+  # пишутся на диск API — см. docs/DEPLOY.md, п. 8.
   # Бакет с открытым чтением создаёт API при старте вне прода (storage.service.ts).
   # Консоль: http://localhost:9001, логин и пароль — S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY.
   storage:
