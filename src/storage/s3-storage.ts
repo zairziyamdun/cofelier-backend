@@ -24,7 +24,7 @@ export class S3Storage {
     this.client = new S3Client({
       endpoint: config.endpoint,
       region: config.region,
-      // Путь вида /bucket/key понимают и RustFS, и R2.
+      // Путь вида /bucket/key понимают RustFS, MinIO и облачные S3.
       forcePathStyle: true,
       credentials: {
         accessKeyId: config.accessKeyId,
@@ -34,7 +34,11 @@ export class S3Storage {
   }
 
   // Ключи файлов уникальны и не перезаписываются — браузер может кешировать навсегда.
-  async put(key: string, body: Buffer, contentType: string): Promise<void> {
+  async put(
+    key: string,
+    body: Buffer,
+    contentType = 'image/webp',
+  ): Promise<void> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.config.bucket,
@@ -60,8 +64,13 @@ export class S3Storage {
     return `${this.config.publicUrl}/${key}`;
   }
 
+  // Подготовка к работе — для разработки: бакет с открытым чтением.
+  prepare(): Promise<void> {
+    return this.ensurePublicBucket();
+  }
+
   // Только для разработки: создать бакет и открыть его на чтение. На проде
-  // бакет и доступ настраиваются в панели R2 (docs/DEPLOY.md).
+  // бакет и доступ настраиваются в панели хранилища (docs/DEPLOY.md).
   async ensurePublicBucket(): Promise<void> {
     const bucket = this.config.bucket;
     try {
