@@ -129,21 +129,22 @@ model ModifierGroup {
 }
 
 model ModifierOption {
-  id         Int           @id @default(autoincrement())
-  groupId    Int           @map("group_id")
-  group      ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  id         Int                 @id @default(autoincrement())
+  groupId    Int                 @map("group_id")
+  group      ModifierGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
   name       String
   // Надбавка к цене товара в целых тенге; 0 — бесплатно.
-  priceDelta Int           @default(0) @map("price_delta")
+  priceDelta Int                 @default(0) @map("price_delta")
   // Выбран сразу: «+» в меню добавляет товар с вариантами по умолчанию.
-  isDefault  Boolean       @default(false) @map("is_default")
+  isDefault  Boolean             @default(false) @map("is_default")
   // Закончилось (овсяное молоко): вариант виден, но выбрать нельзя.
-  inStopList Boolean       @default(false) @map("in_stop_list")
+  inStopList Boolean             @default(false) @map("in_stop_list")
   // Подпись к варианту, например объём у размера: «350 мл».
   note       String?
-  sortOrder  Int           @default(0) @map("sort_order")
-  createdAt  DateTime      @default(now()) @map("created_at")
-  updatedAt  DateTime      @updatedAt @map("updated_at")
+  sortOrder  Int                 @default(0) @map("sort_order")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  orderItems OrderItemModifier[]
 
   @@index([groupId, sortOrder])
   @@map("modifier_options")
@@ -217,15 +218,19 @@ model OrderItem {
 // Копия выбранной добавки на момент заказа: правка или удаление добавки в меню
 // старые заказы не меняет.
 model OrderItemModifier {
-  id          Int       @id @default(autoincrement())
-  orderItemId Int       @map("order_item_id")
-  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  groupName   String    @map("group_name")
-  optionName  String    @map("option_name")
-  priceDelta  Int       @map("price_delta")
-  quantity    Int       @default(1)
+  id          Int             @id @default(autoincrement())
+  orderItemId Int             @map("order_item_id")
+  orderItem   OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  // Какой вариант выбрали — чтобы повторить заказ. Вариант удалили из меню —
+  // null, а копия названия и цены остаётся.
+  optionId    Int?            @map("option_id")
+  option      ModifierOption? @relation(fields: [optionId], references: [id], onDelete: SetNull)
+  groupName   String          @map("group_name")
+  optionName  String          @map("option_name")
+  priceDelta  Int             @map("price_delta")
+  quantity    Int             @default(1)
   // Был вариантом по умолчанию — бариста выделяет только отличия.
-  isDefault   Boolean   @default(false) @map("is_default")
+  isDefault   Boolean         @default(false) @map("is_default")
 
   @@index([orderItemId])
   @@map("order_item_modifiers")

@@ -9,7 +9,10 @@ import type { Role, User } from '../src/generated/prisma/client';
 import type { ManagedMenuItemDto } from '../src/menu/dto/menu-manage.dto';
 import type { ManagedModifierGroupDto } from '../src/menu/dto/menu-modifiers.dto';
 import type { MenuCategoryDto } from '../src/menu/dto/menu-response.dto';
-import type { OrderDto } from '../src/orders/dto/order-response.dto';
+import type {
+  OrderDto,
+  RepeatOrderDto,
+} from '../src/orders/dto/order-response.dto';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { testUsers } from './helpers/users';
 
@@ -17,6 +20,7 @@ describe('Добавки и заказ с добавками (e2e)', () => {
   let app: INestApplication<App>;
   let managerCookie: string;
   let client: User;
+  let repeatClient: User;
   let categoryId: number;
   let size: ManagedModifierGroupDto;
   let milk: ManagedModifierGroupDto;
@@ -55,6 +59,7 @@ describe('Добавки и заказ с добавками (e2e)', () => {
     await app.init();
     managerCookie = users.cookie(await users.create('manager'));
     client = await users.create('client');
+    repeatClient = await users.create('client');
     // Категория из сидов: новые категории мешали бы тесту порядка категорий.
     categoryId = (
       await app
@@ -105,7 +110,9 @@ describe('Добавки и заказ с добавками (e2e)', () => {
 
   afterAll(async () => {
     const prisma = app.get(PrismaService);
-    await prisma.order.deleteMany({ where: { userId: client.id } });
+    await prisma.order.deleteMany({
+      where: { userId: { in: [client.id, repeatClient.id] } },
+    });
     await prisma.menuItem.deleteMany({ where: { id: { in: itemIds } } });
     await prisma.modifierGroup.deleteMany({ where: { id: { in: groupIds } } });
     await users.cleanup();
@@ -313,6 +320,99 @@ describe('Добавки и заказ с добавками (e2e)', () => {
     expect(
       kept?.items[0].modifiers.map((modifier) => modifier.optionName),
     ).toEqual(['Стандарт', 'Корица']);
+  });
+
+  it('повтор: нет заказов, всё доступно, вариант в стоп-листе', async () => {
+    const cookie = users.cookie(repeatClient);
+    const repeat = async () =>
+      (
+        await api()
+          .get('/api/orders/my/repeat')
+          .set('Cookie', cookie)
+          .expect(200)
+      ).body as RepeatOrderDto;
+
+    expect(await repeat()).toEqual({
+      orderId: null,
+      createdAt: null,
+      lines: [],
+    });
+
+    // Тест выше оставил у позиции другие группы — возвращаем все три.
+    await api()
+      .put(`/api/menu/items/${item.id}/modifier-groups`)
+      .set('Cookie', managerCookie)
+      .send({ groupIds: [size.id, milk.id, shot.id] })
+      .expect(200);
+    const oat = option(milk, 'Овсяное');
+    const placed = (
+      await api()
+        .post('/api/orders')
+        .set('Cookie', cookie)
+        .send({
+          items: [
+            {
+              menuItemId: item.id,
+              quantity: 2,
+              modifiers: [
+                { optionId: option(size, 'Большой') },
+                { optionId: oat },
+              ],
+            },
+          ],
+        })
+        .expect(201)
+    ).body as OrderDto;
+
+    const fresh = await repeat();
+    expect(fresh.orderId).toBe(placed.id);
+    expect(fresh.lines).toEqual([
+      {
+        menuItemId: item.id,
+        name: item.name,
+        quantity: 2,
+        modifiers: [
+          { optionId: option(size, 'Большой'), quantity: 1 },
+          { optionId: oat, quantity: 1 },
+        ],
+        available: true,
+        reason: null,
+      },
+    ]);
+
+    await api()
+      .patch(`/api/menu/modifier-options/${oat}`)
+      .set('Cookie', managerCookie)
+      .send({ inStopList: true })
+      .expect(200);
+    const stopped = await repeat();
+    expect(stopped.lines[0].available).toBe(false);
+    expect(stopped.lines[0].reason).toContain('Овсяное');
+    await api()
+      .patch(`/api/menu/modifier-options/${oat}`)
+      .set('Cookie', managerCookie)
+      .send({ inStopList: false })
+      .expect(200);
+  });
+
+  it('повтор после удаления добавки: строка недоступна, остальное цело', async () => {
+    const repeat = (
+      await api()
+        .get('/api/orders/my/repeat')
+        .set('Cookie', users.cookie(client))
+        .expect(200)
+    ).body as RepeatOrderDto;
+    // Последний заказ клиента — с «Корицей» из удалённой группы (тест выше).
+    expect(repeat.lines[0]).toMatchObject({
+      available: false,
+      reason: 'Добавки к этой позиции изменились',
+    });
+  });
+
+  it('повтор — только для клиента', async () => {
+    const cookie = users.cookie(await users.create('barista'));
+    await api().get('/api/orders/my/repeat').set('Cookie', cookie).expect(403);
+    await api().get('/api/orders/my/repeat').expect(401);
   });
 
   it.each<Role>(['client', 'barista'])(

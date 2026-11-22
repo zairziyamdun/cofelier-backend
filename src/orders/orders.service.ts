@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,7 +10,12 @@ import type { OrderStatus } from '../generated/prisma/client';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/order-request.dto';
-import { OrderDto, StaffOrderDto } from './dto/order-response.dto';
+import {
+  OrderDto,
+  RepeatLineDto,
+  RepeatOrderDto,
+  StaffOrderDto,
+} from './dto/order-response.dto';
 import { ACTIVE_STATUSES, canTransition, statusLabels } from './order-status';
 import { OrdersGateway } from './orders.gateway';
 import { toOrderDto, toStaffOrderDto } from './orders.mapper';
@@ -91,6 +97,68 @@ export class OrdersService {
     return orders.map(toOrderDto);
   }
 
+  // «Повторить»: последний не отменённый заказ, каждая строка проверена по
+  // текущему меню отдельно — одна закончившаяся позиция не мешает остальным.
+  async repeatLast(userId: number): Promise<RepeatOrderDto> {
+    const order = await this.prisma.order.findFirst({
+      where: { userId, status: { not: 'cancelled' } },
+      orderBy: { createdAt: 'desc' },
+      include: withItems,
+    });
+    if (!order) return { orderId: null, createdAt: null, lines: [] };
+
+    const lines: RepeatLineDto[] = [];
+    for (const item of order.items) {
+      const base = {
+        menuItemId: item.menuItemId,
+        name: item.name,
+        quantity: item.quantity,
+      };
+      // Вариант удалили из меню — копия названия есть, а собрать заново нечем.
+      if (item.modifiers.some((modifier) => modifier.optionId === null)) {
+        lines.push({
+          ...base,
+          modifiers: [],
+          available: false,
+          reason: 'Добавки к этой позиции изменились',
+        });
+        continue;
+      }
+      const modifiers = item.modifiers.map((modifier) => ({
+        optionId: modifier.optionId ?? 0,
+        quantity: modifier.quantity,
+      }));
+      lines.push({
+        ...base,
+        modifiers,
+        ...(await this.checkLine(item.menuItemId, item.quantity, modifiers)),
+      });
+    }
+    return {
+      orderId: order.id,
+      createdAt: order.createdAt.toISOString(),
+      lines,
+    };
+  }
+
+  private async checkLine(
+    menuItemId: number,
+    quantity: number,
+    modifiers: { optionId: number; quantity: number }[],
+  ): Promise<{ available: boolean; reason: string | null }> {
+    try {
+      await this.menuService.resolveOrderLines([
+        { menuItemId, quantity, modifiers },
+      ]);
+      return { available: true, reason: null };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        return { available: false, reason: repeatReason(error.message) };
+      }
+      throw error;
+    }
+  }
+
   // Очередь персонала: активные заказы, старые сверху.
   async findQueue(): Promise<StaffOrderDto[]> {
     const orders = await this.prisma.order.findMany({
@@ -148,4 +216,10 @@ export class OrdersService {
 
 function formatTenge(value: number): string {
   return `${value.toLocaleString('ru-RU')} ₸`;
+}
+
+// Тексты проверки написаны для оформления («— уберите из корзины»); для
+// «Повторить» корзины ещё нет — хвост с советом убираем.
+function repeatReason(message: string): string {
+  return message.replace(/ — (уберите из корзины|обновите корзину)$/, '');
 }
