@@ -41,6 +41,7 @@ describe('Menu (e2e)', () => {
     const item = menu[0].items[0];
     expect(Object.keys(item).sort()).toEqual(
       [
+        'badges',
         'description',
         'id',
         'imageUrl',

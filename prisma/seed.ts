@@ -6,6 +6,7 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../src/generated/prisma/client';
+import type { MenuBadge } from '../src/generated/prisma/enums';
 
 type SeedItem = {
   name: string;
@@ -13,7 +14,12 @@ type SeedItem = {
   portion?: string;
   price: number;
   inStopList?: boolean;
+  badges?: MenuBadge[];
+  // true — «Новинка» на 14 дней от запуска сидов, чтобы метку было видно локально.
+  isNew?: boolean;
 };
+
+const NEW_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
 
 type SeedCategory = {
   slug: string;
@@ -98,12 +104,15 @@ const menu: SeedCategory[] = [
         description: 'Латте с карамелью, морской солью и корицей',
         portion: '350 мл',
         price: 2200,
+        badges: ['signature'],
       },
       {
         name: 'Апельсиновый тоник',
         description: 'Эспрессо, тоник и свежий апельсиновый сок',
         portion: '350 мл',
         price: 2100,
+        badges: ['seasonal'],
+        isNew: true,
       },
     ],
   },
@@ -121,6 +130,7 @@ const menu: SeedCategory[] = [
         description: 'Бельгийский шоколад и молоко',
         portion: '300 мл',
         price: 1600,
+        badges: ['decaf'],
       },
       {
         name: 'Чай в чайнике',
@@ -178,6 +188,8 @@ async function main() {
           portion: item.portion ?? null,
           price: item.price,
           inStopList: item.inStopList ?? false,
+          badges: item.badges ?? [],
+          newUntil: item.isNew ? new Date(Date.now() + NEW_DAYS_MS) : null,
           sortOrder: itemIndex,
         };
         const existing = await prisma.menuItem.findFirst({

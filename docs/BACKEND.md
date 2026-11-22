@@ -159,6 +159,22 @@ Dockerfile            многоступенчатая сборка; при ст
 - Архив и стоп-лист не отдаются: на витрине — только то, что можно заказать.
 - `limit` — 1–12, по умолчанию 4; иначе `400`.
 
+### Метки позиций (есть)
+
+- В ответе меню у каждой позиции — `badges`, готовый список по порядку
+  важности: `popular`, `new`, затем ручные `seasonal`, `signature`, `decaf`.
+  Правила — чистые функции в `menu/menu-badges.ts`.
+- `popular` — режим `popularOverride`: `null` (авто) — топ-5 позиций по
+  сумме порций (`quantity`) за последние 30 дней без отменённых заказов, не
+  меньше 3 порций; `true` — всегда; `false` — никогда. В панели позиция
+  отдаёт ещё `autoPopular` — что дал бы режим «авто».
+- Витрина `/menu/popular` считает по заказам за всё время, но учитывает
+  решение менеджера: `true` — первыми, `false` — не показываются.
+- `new` — пока `newUntil` в будущем. Новая позиция получает срок +14 дней,
+  если менеджер не передал `newUntil`; `null` — снять метку.
+- Ручные метки — `manualBadges` в `POST/PATCH /menu/items`, enum `MenuBadge`.
+  В панели (`/menu/manage`) позиция отдаёт и `manualBadges`, и `newUntil`.
+
 ### Управление меню (есть)
 
 - `@Roles('manager', 'admin')` на всём `MenuAdminController`.
@@ -192,7 +208,8 @@ Dockerfile            многоступенчатая сборка; при ст
 ## 4. БД и Prisma
 
 - Модели (есть): `MenuCategory` (slug, name, sortOrder), `MenuItem`
-  (name, description, portion, price, imageUrl, inStopList, sortOrder).
+  (name, description, portion, price, imageUrl, inStopList, badges, newUntil,
+  popularOverride, sortOrder).
   Наружу `inStopList` уходит как `isAvailable` — видна, но не заказать.
 - Модели (есть): `User` (email, passwordHash, role, name, isActive),
   `Order` (userId, status, total, comment, pickupAt) и `OrderItem`

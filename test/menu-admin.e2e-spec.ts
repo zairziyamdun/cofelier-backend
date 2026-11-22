@@ -10,7 +10,10 @@ import type {
   ManagedMenuCategoryDto,
   ManagedMenuItemDto,
 } from '../src/menu/dto/menu-manage.dto';
-import type { MenuCategoryDto } from '../src/menu/dto/menu-response.dto';
+import type {
+  MenuCategoryDto,
+  MenuItemDto,
+} from '../src/menu/dto/menu-response.dto';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { testUsers } from './helpers/users';
 
@@ -155,6 +158,98 @@ describe('Управление меню (e2e)', () => {
       400,
     );
     await post({ categoryId: 999_999, name: 'Кофе', price: 100 }).expect(404);
+  });
+
+  it('метки: новинка на 14 дней по умолчанию, ручные видны в меню', async () => {
+    const category = await createCategory(`Метки ${Date.now()}`);
+    const post = (body: object) =>
+      api()
+        .post('/api/menu/items')
+        .set('Cookie', managerCookie)
+        .send({ categoryId: category.id, price: 900, ...body });
+
+    const fresh = (await post({ name: 'Новый раф' }).expect(201))
+      .body as ManagedMenuItemDto;
+    expect(fresh.badges).toEqual(['new']);
+    expect(fresh.manualBadges).toEqual([]);
+    const days =
+      (new Date(fresh.newUntil!).getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(13.9);
+    expect(days).toBeLessThanOrEqual(14);
+
+    const old = (await post({ name: 'Старый', newUntil: null }).expect(201))
+      .body as ManagedMenuItemDto;
+    expect(old.badges).toEqual([]);
+
+    const updated = await api()
+      .patch(`/api/menu/items/${old.id}`)
+      .set('Cookie', managerCookie)
+      .send({ manualBadges: ['decaf', 'seasonal'] })
+      .expect(200);
+    expect((updated.body as ManagedMenuItemDto).badges).toEqual([
+      'seasonal',
+      'decaf',
+    ]);
+
+    // Снять «Новинку» раньше срока.
+    const unmarked = await api()
+      .patch(`/api/menu/items/${fresh.id}`)
+      .set('Cookie', managerCookie)
+      .send({ newUntil: null })
+      .expect(200);
+    expect((unmarked.body as ManagedMenuItemDto).badges).toEqual([]);
+
+    const menu = await api().get('/api/menu').expect(200);
+    const publicOld = (menu.body as MenuCategoryDto[])
+      .flatMap((group) => group.items)
+      .find((menuItem) => menuItem.id === old.id);
+    expect(publicOld?.badges).toEqual(['seasonal', 'decaf']);
+    expect(publicOld).not.toHaveProperty('manualBadges');
+
+    // «Популярно» вручную: да → на витрине среди первых; нет → не на витрине; авто — по заказам.
+    const forced = await api()
+      .patch(`/api/menu/items/${old.id}`)
+      .set('Cookie', managerCookie)
+      .send({ popularOverride: true })
+      .expect(200);
+    expect(forced.body as ManagedMenuItemDto).toMatchObject({
+      popularOverride: true,
+      autoPopular: false,
+    });
+    expect((forced.body as ManagedMenuItemDto).badges[0]).toBe('popular');
+    const showcase = async () =>
+      (
+        (await api().get('/api/menu/popular?limit=12').expect(200))
+          .body as MenuItemDto[]
+      ).map((menuItem) => menuItem.id);
+    // В базе могут быть и другие позиции с «Да»: тестовая — в их группе, до «авто».
+    const forcedCount = await app.get(PrismaService).menuItem.count({
+      where: { popularOverride: true, isArchived: false, inStopList: false },
+    });
+    const position = (await showcase()).indexOf(old.id);
+    expect(position).toBeGreaterThanOrEqual(0);
+    expect(position).toBeLessThan(forcedCount);
+
+    await api()
+      .patch(`/api/menu/items/${old.id}`)
+      .set('Cookie', managerCookie)
+      .send({ popularOverride: false })
+      .expect(200);
+    expect(await showcase()).not.toContain(old.id);
+
+    const auto = await api()
+      .patch(`/api/menu/items/${old.id}`)
+      .set('Cookie', managerCookie)
+      .send({ popularOverride: null })
+      .expect(200);
+    expect((auto.body as ManagedMenuItemDto).popularOverride).toBeNull();
+    expect((auto.body as ManagedMenuItemDto).badges).not.toContain('popular');
+
+    const wrong = await post({ name: 'Ошибка', manualBadges: ['hot'] }).expect(
+      400,
+    );
+    expect(JSON.stringify(wrong.body)).toContain('Неизвестная метка');
+    await post({ name: 'Ошибка', newUntil: 'завтра' }).expect(400);
   });
 
   it('категорию с позициями удалить нельзя — 409, пустую — можно', async () => {

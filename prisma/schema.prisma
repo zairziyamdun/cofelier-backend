@@ -50,27 +50,41 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id          Int          @id @default(autoincrement())
-  categoryId  Int          @map("category_id")
-  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  name        String
-  description String?
+  id              Int          @id @default(autoincrement())
+  categoryId      Int          @map("category_id")
+  category        MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name            String
+  description     String?
   // Объём или вес для подписи: «250 мл», «120 г».
-  portion     String?
+  portion         String?
   // Цена в целых тенге: дробных сумм в меню нет.
-  price       Int
-  imageUrl    String?      @map("image_url")
+  price           Int
+  imageUrl        String?      @map("image_url")
   // Стоп-лист: позиция видна в меню, но заказать её нельзя.
-  inStopList  Boolean      @default(false) @map("in_stop_list")
+  inStopList      Boolean      @default(false) @map("in_stop_list")
   // Удалённая позиция, которая уже есть в заказах: скрыта из меню, но история цела.
-  isArchived  Boolean      @default(false) @map("is_archived")
-  sortOrder   Int          @default(0) @map("sort_order")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  orderItems  OrderItem[]
+  isArchived      Boolean      @default(false) @map("is_archived")
+  // Метки, которые ставит менеджер. «Новинка» и «Популярно» считаются сами —
+  // menu/menu-badges.ts.
+  badges          MenuBadge[]  @default([])
+  // До какого момента позиция — «Новинка»; null — не новинка.
+  newUntil        DateTime?    @map("new_until")
+  // «Популярно» вручную: true — всегда, false — никогда, null — по заказам.
+  popularOverride Boolean?     @map("popular_override")
+  sortOrder       Int          @default(0) @map("sort_order")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  orderItems      OrderItem[]
 
   @@index([categoryId, sortOrder])
   @@map("menu_items")
+}
+
+// Ручные метки позиции меню.
+enum MenuBadge {
+  seasonal
+  signature
+  decaf
 }
 
 // Жизненный цикл заказа: переходы — orders/order-status.ts.
